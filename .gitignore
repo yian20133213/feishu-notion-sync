@@ -79,3 +79,9 @@ qiniu_test.py
 *private*
 *secret*
 *credential*
+
+# 项目文档（不上传）
+AI开发提示词-*.md
+项目开发总结-*.md
+飞书-Notion双向同步系统设计实战*.md
+飞书-Notion双向同步系统需求文档.md
