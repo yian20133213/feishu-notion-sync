@@ -1,0 +1,81 @@
+# 敏感配置文件
+.env
+config.py
+settings.py
+
+# 数据库文件
+*.db
+*.sqlite
+*.sqlite3
+
+# 日志文件
+*.log
+logs/
+
+# Python相关
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 虚拟环境
+venv/
+env/
+ENV/
+
+# IDE相关
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 操作系统相关
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# 临时文件
+tmp/
+temp/
+*.tmp
+
+# 上传的图片文件
+static/images/*
+!static/images/.gitkeep
+
+# 生产环境特定文件
+production_server.log
+nohup.out
+
+# 备份文件
+*.bak
+*.backup
+
+# 七牛云相关
+qiniu_test.py
+
+# 私有文档
+*private*
+*secret*
+*credential*
