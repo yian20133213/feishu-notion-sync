@@ -31,13 +31,16 @@ class QiniuClient:
         self.cdn_domain = cdn_domain or settings.qiniu_cdn_domain
         self.logger = logger or logging.getLogger(__name__)
         
-        if Auth:
+        if Auth and self.access_key and self.secret_key:
             self.auth = Auth(self.access_key, self.secret_key)
             self.bucket_manager = BucketManager(self.auth)
         else:
             self.auth = None
             self.bucket_manager = None
-            self.logger.warning("Qiniu SDK not available, using fallback methods")
+            if Auth:
+                self.logger.warning("Qiniu credentials not configured, using fallback methods")
+            else:
+                self.logger.warning("Qiniu SDK not available, using fallback methods")
     
     def _generate_file_hash(self, data: bytes) -> str:
         """生成文件MD5哈希"""
@@ -175,7 +178,9 @@ class QiniuClient:
                 with open(local_path, 'wb') as f:
                     f.write(processed_data)
                 
-                cdn_url = f"/static/images/{filename}"
+                # 生成绝对URL - 使用配置的服务器域名或localhost
+                server_url = os.getenv('SERVER_URL', 'https://sync.yianlu.com')
+                cdn_url = f"{server_url.rstrip('/')}/static/images/{filename}"
                 logger.info(f"Saved image locally: {cdn_url}")
                 return cdn_url, file_hash, len(processed_data)
         

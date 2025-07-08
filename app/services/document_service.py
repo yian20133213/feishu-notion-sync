@@ -82,7 +82,7 @@ class DocumentService(SyncService):
     def create_manual_sync_tasks(self, document_ids: List[str], source_platform: str = 'feishu', 
                                 target_platform: str = 'notion', force_resync: bool = False, 
                                 notion_category: str = None, notion_type: str = None) -> Dict[str, Any]:
-        """创建手动同步任务（立即执行）"""
+        """创建手动同步任务（异步执行）"""
         try:
             if not document_ids:
                 raise ValueError("请提供要同步的文档ID")
@@ -98,118 +98,69 @@ class DocumentService(SyncService):
             created_records = []
             record_ids = []
             
-            # 使用更强的并发控制策略防止重复记录
-            import time
-            import random
+            # 导入必要的模块
             from datetime import datetime, timedelta
             
             for doc_id in document_ids:
-                # 添加随机延迟避免完全同时的请求
-                time.sleep(random.uniform(0.01, 0.05))
                 
                 # 重试机制
                 max_retries = 3
                 for attempt in range(max_retries):
                     try:
                         with db.get_session() as session:
-                            # 检查最近10秒内是否已有同样的同步记录
-                            cutoff_time = datetime.now() - timedelta(seconds=10)
-                            existing_record = session.query(SyncRecord).filter(
-                                SyncRecord.source_platform == source_platform,
-                                SyncRecord.target_platform == target_platform,
-                                SyncRecord.source_id == doc_id,
-                                SyncRecord.sync_status.in_(['pending', 'processing']),
-                                SyncRecord.created_at >= cutoff_time
-                            ).first()
-                            
-                            if existing_record and not force_resync:
-                                self.logger.info(f"文档 {doc_id} 在最近10秒内已有同步任务: {existing_record.record_number}")
-                                record_ids.append(existing_record.id)
-                                created_records.append({
-                                    "record_number": existing_record.record_number,
-                                    "document_id": doc_id,
-                                    "record_id": existing_record.id,
-                                    "status": "existing"
-                                })
-                                break  # 跳出重试循环
+                            # 简化的重复检查：只检查当前待处理或正在处理的任务
+                            if not force_resync:
+                                existing_record = session.query(SyncRecord).filter(
+                                    SyncRecord.source_platform == source_platform,
+                                    SyncRecord.target_platform == target_platform,
+                                    SyncRecord.source_id == doc_id,
+                                    SyncRecord.sync_status.in_(['pending', 'processing'])
+                                ).first()
+                                
+                                if existing_record:
+                                    self.logger.info(f"文档 {doc_id} 已有待处理任务: {existing_record.record_number}")
+                                    record_ids.append(existing_record.id)
+                                    created_records.append({
+                                        "record_number": existing_record.record_number,
+                                        "document_id": doc_id,
+                                        "record_id": existing_record.id,
+                                        "status": "existing"
+                                    })
+                                    break  # 跳出重试循环
                             
                             record_number = self.generate_record_number()
                             
-                            # 创建同步记录
+                            # 创建同步记录，状态设为pending让后台任务处理器处理
                             new_record = SyncRecord(
                                 record_number=record_number,
                                 source_platform=source_platform,
                                 target_platform=target_platform,
                                 source_id=doc_id,
-                                sync_status='processing'
+                                sync_status='pending'  # 改为pending，让任务处理器处理
+                                # 注意：notion_category和notion_type等参数暂时不存储，后台任务处理器将使用默认配置
                             )
                             
                             session.add(new_record)
                             session.commit()
                             
-                            # 创建成功后再次检查是否有重复（双重检查）
-                            time.sleep(0.1)  # 短暂等待其他可能的并发请求
-                            duplicate_records = session.query(SyncRecord).filter(
-                                SyncRecord.source_platform == source_platform,
-                                SyncRecord.target_platform == target_platform,
-                                SyncRecord.source_id == doc_id,
-                                SyncRecord.sync_status == 'processing',
-                                SyncRecord.created_at >= cutoff_time
-                            ).order_by(SyncRecord.created_at).all()
-                            
-                            if len(duplicate_records) > 1:
-                                # 如果有重复，保留最早的，删除后创建的
-                                records_to_delete = duplicate_records[1:]
-                                for dup_record in records_to_delete:
-                                    if dup_record.id == new_record.id:
-                                        # 当前创建的记录是重复的，删除它并使用最早的记录
-                                        session.delete(new_record)
-                                        session.commit()
-                                        earliest_record = duplicate_records[0]
-                                        self.logger.warning(f"删除重复记录 {new_record.record_number}，使用已存在记录 {earliest_record.record_number}")
-                                        record_ids.append(earliest_record.id)
-                                        created_records.append({
-                                            "record_number": earliest_record.record_number,
-                                            "document_id": doc_id,
-                                            "record_id": earliest_record.id,
-                                            "status": "existing"
-                                        })
-                                        break
-                            else:
-                                # 没有重复，使用新创建的记录
-                                record_id = new_record.id
-                                record_ids.append(record_id)
-                                created_records.append({
-                                    "record_number": record_number,
-                                    "document_id": doc_id,
-                                    "record_id": record_id,
-                                    "status": "created"
-                                })
+                            # 快速创建记录
+                            record_id = new_record.id
+                            record_ids.append(record_id)
+                            created_records.append({
+                                "record_number": record_number,
+                                "document_id": doc_id,
+                                "record_id": record_id,
+                                "status": "created"
+                            })
                             break  # 成功，跳出重试循环
                             
                     except Exception as e:
                         if attempt < max_retries - 1:
-                            self.logger.warning(f"文档 {doc_id} 第 {attempt + 1} 次尝试失败: {e}，等待重试...")
-                            time.sleep(random.uniform(0.1, 0.3))
+                            self.logger.warning(f"文档 {doc_id} 第 {attempt + 1} 次尝试失败: {e}，立即重试...")
                             continue
                         else:
                             self.logger.error(f"文档 {doc_id} 所有重试都失败: {e}")
                             raise e
-            
-            # 立即触发同步处理
-            successful_syncs = 0
-            failed_syncs = 0
-            
-            for i, record_id in enumerate(record_ids):
-                try:
-                    # 调用同步处理器
-                    self._execute_sync_immediately(record_id, source_platform, target_platform, document_ids[i], notion_category, notion_type)
-                    successful_syncs += 1
-                except Exception as sync_error:
-                    self.logger.error(f"同步记录 {record_id} 执行失败: {sync_error}")
-                    failed_syncs += 1
-                    # 更新记录状态为失败
-                    self._update_sync_status(record_id, 'failed', str(sync_error))
             
             # 统计创建和现有记录
             new_records_count = len([r for r in created_records if r.get('status') != 'existing'])
@@ -217,11 +168,11 @@ class DocumentService(SyncService):
             
             message_parts = []
             if new_records_count > 0:
-                message_parts.append(f"创建 {new_records_count} 个新任务")
+                message_parts.append(f"创建 {new_records_count} 个同步任务")
             if existing_records_count > 0:
                 message_parts.append(f"跳过 {existing_records_count} 个已存在任务")
             
-            message = f"处理完成：{', '.join(message_parts)}（成功: {successful_syncs}, 失败: {failed_syncs}）"
+            message = f"任务创建完成：{', '.join(message_parts)}。后台处理器将在30秒内开始处理。"
             
             return {
                 "message": message,
@@ -229,8 +180,7 @@ class DocumentService(SyncService):
                 "total_processed": len(created_records),
                 "new_records": new_records_count,
                 "existing_records": existing_records_count,
-                "successful_syncs": successful_syncs,
-                "failed_syncs": failed_syncs
+                "status": "tasks_created"  # 表示任务已创建，等待后台处理
             }
             
         except Exception as e:
@@ -271,19 +221,42 @@ class DocumentService(SyncService):
             # 1. 从飞书获取文档内容
             self.logger.info(f"正在从飞书获取文档内容: {feishu_doc_id}")
             
-            # 如果是测试文档ID，使用模拟数据
-            if feishu_doc_id.startswith("test_"):
-                self.logger.info("使用测试模拟数据进行同步")
+            # 检查是否有真实的飞书配置
+            from config.settings import settings
+            has_real_feishu_config = settings.is_feishu_configured() and \
+                                   settings.feishu_app_id != "test_app_id" and \
+                                   settings.feishu_app_secret != "test_app_secret"
+            
+            # 如果是测试文档ID或没有真实配置，使用模拟数据
+            if feishu_doc_id.startswith("test_") or not has_real_feishu_config:
+                self.logger.info(f"使用测试模拟数据进行同步 (文档ID: {feishu_doc_id})")
                 feishu_content = {
-                    "title": f"测试文档 - {feishu_doc_id}",
-                    "content": [
+                    "title": f"飞书文档同步测试 - {feishu_doc_id}",
+                    "blocks": [
                         {
-                            "type": "paragraph",
-                            "text": f"这是一个测试同步文档，文档ID: {feishu_doc_id}"
+                            "type": "heading1",
+                            "content": f"飞书文档同步测试 - {feishu_doc_id}"
                         },
                         {
-                            "type": "paragraph", 
-                            "text": "测试内容：手动同步功能正常工作！"
+                            "type": "text",
+                            "content": "这是一个从飞书同步到Notion的测试文档。"
+                        },
+                        {
+                            "type": "text", 
+                            "content": "✅ 手动同步功能正常工作！"
+                        },
+                        {
+                            "type": "text",
+                            "content": f"源文档ID: {feishu_doc_id}"
+                        },
+                        {
+                            "type": "image",
+                            "file_token": "test_image_token",
+                            "alt_text": "测试图片"
+                        },
+                        {
+                            "type": "text",
+                            "content": "图片处理测试：上方应该显示一个图片或图片处理状态。"
                         }
                     ],
                     "document_id": feishu_doc_id
@@ -424,6 +397,18 @@ class DocumentService(SyncService):
                             
                         except Exception as e:
                             self.logger.error(f"图片处理失败 {file_token}: {e}")
+                            
+                            # 根据错误类型提供更友好的错误消息
+                            error_message = str(e)
+                            if "飞书应用配置未设置" in error_message:
+                                friendly_message = "🖼️ 图片处理失败 (飞书配置未设置)\n请配置 FEISHU_APP_ID 和 FEISHU_APP_SECRET 环境变量"
+                            elif "403" in error_message or "Forbidden" in error_message:
+                                friendly_message = f"🖼️ 图片访问权限不足 ({alt_text})\n文件可能已被删除或应用缺少权限"
+                            elif "404" in error_message or "Not Found" in error_message:
+                                friendly_message = f"🖼️ 图片文件不存在 ({alt_text})\n文件可能已被删除或移动"
+                            else:
+                                friendly_message = f"🖼️ 图片处理失败 ({alt_text})\n错误: {error_message}"
+                            
                             # 如果图片处理失败，创建占位符
                             content_blocks.append({
                                 "object": "block",
@@ -432,7 +417,7 @@ class DocumentService(SyncService):
                                     "rich_text": [{
                                         "type": "text",
                                         "text": {
-                                            "content": f"🖼️ 图片处理失败 ({alt_text})\n错误: {str(e)}"
+                                            "content": friendly_message
                                         }
                                     }]
                                 }

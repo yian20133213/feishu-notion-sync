@@ -137,7 +137,7 @@ class Database:
             if settings.database_url.startswith('sqlite'):
                 self.engine = create_engine(
                     settings.database_url,
-                    echo=settings.debug,
+                    echo=settings.flask_debug,
                     pool_pre_ping=True,
                     pool_recycle=3600,
                     echo_pool=False  # 生产环境关闭池日志
@@ -146,7 +146,7 @@ class Database:
                 # MySQL and other databases support full pool configuration
                 self.engine = create_engine(
                     settings.database_url,
-                    echo=settings.debug,
+                    echo=settings.flask_debug,
                     pool_pre_ping=True,
                     pool_recycle=3600,
                     pool_size=20,  # 增加连接池大小

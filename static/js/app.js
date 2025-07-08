@@ -1265,7 +1265,19 @@
         }
         
         // 手动同步功能
+        // 防重复执行的标志
+        let isExecutingManualSync = false;
+        
         function executeManualSync() {
+            // 防止重复执行
+            if (isExecutingManualSync) {
+                console.log('手动同步正在执行中，忽略重复请求');
+                return;
+            }
+            
+            isExecutingManualSync = true;
+            console.log('开始执行手动同步');
+            
             const input = document.getElementById('manual-sync-input').value.trim();
             const sourcePlatform = document.getElementById('manual-source-platform').value;
             const targetPlatform = document.getElementById('manual-target-platform').value;
@@ -1275,6 +1287,7 @@
             
             if (!input) {
                 showNotification('请输入文档ID或链接', 'error');
+                isExecutingManualSync = false;
                 return;
             }
             
@@ -1283,6 +1296,7 @@
             
             if (lines.length === 0) {
                 showNotification('请输入有效的文档ID或链接', 'error');
+                isExecutingManualSync = false;
                 return;
             }
             
@@ -1307,11 +1321,15 @@
                         createManualSyncTasks(data.data.document_ids, sourcePlatform, targetPlatform, forceResync, notionCategory, notionType);
                     } else {
                         showNotification('链接解析失败', 'error');
+                        // 重置执行标志
+                        isExecutingManualSync = false;
                     }
                 })
                 .catch(error => {
                     console.error('Error parsing URLs:', error);
                     showNotification('链接解析失败', 'error');
+                    // 重置执行标志
+                    isExecutingManualSync = false;
                 });
             } else {
                 // 直接使用输入的ID
@@ -1355,6 +1373,9 @@
                     // 清空输入框
                     document.getElementById('manual-sync-input').value = '';
                     
+                    // 重置执行标志
+                    isExecutingManualSync = false;
+                    
                     // 延迟重新加载数据，确保同步任务已创建
                     setTimeout(() => {
                         loadSyncHistory(true); // 强制刷新同步历史
@@ -1364,11 +1385,15 @@
                     const errorMessage = data.message || data.error || '创建同步任务失败';
                     showNotification(errorMessage, 'error');
                     console.error('手动同步失败:', data);
+                    // 重置执行标志
+                    isExecutingManualSync = false;
                 }
             })
             .catch(error => {
                 console.error('Error creating manual sync:', error);
                 showNotification('创建同步任务失败，请检查网络连接', 'error');
+                // 重置执行标志
+                isExecutingManualSync = false;
             });
         }
         
@@ -1797,8 +1822,11 @@
                 manualSyncButtons.forEach(btn => {
                     const text = btn.textContent.trim();
                     if (text.includes('立即执行同步')) {
+                        // 移除可能存在的旧事件监听器
+                        btn.removeEventListener('click', executeManualSync);
                         btn.addEventListener('click', executeManualSync);
                     } else if (text.includes('取消')) {
+                        btn.removeEventListener('click', hideManualSyncModal);
                         btn.addEventListener('click', hideManualSyncModal);
                     }
                 });

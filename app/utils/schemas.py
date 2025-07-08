@@ -10,8 +10,8 @@ class SyncConfigSchema(Schema):
     platform = fields.Str(required=True, validate=validate.OneOf(['feishu', 'notion']))
     document_id = fields.Str(required=True, validate=validate.Length(min=1, max=100))
     sync_direction = fields.Str(required=True, validate=validate.OneOf(['bidirectional', 'feishu_to_notion']))
-    is_sync_enabled = fields.Bool(missing=True)
-    auto_sync = fields.Bool(missing=True)
+    is_sync_enabled = fields.Bool(load_default=True)
+    auto_sync = fields.Bool(load_default=True)
     webhook_url = fields.Str(validate=validate.Length(max=500), allow_none=True)
 
 
@@ -22,7 +22,7 @@ class BatchSyncSchema(Schema):
         required=True, 
         validate=validate.Length(min=1, max=50)
     )
-    force_sync = fields.Bool(missing=False)
+    force_sync = fields.Bool(load_default=False)
 
 
 class BatchDeleteSchema(Schema):
@@ -34,7 +34,7 @@ class BatchDeleteSchema(Schema):
 class BatchRetrySchema(Schema):
     """批量重试验证模式"""
     record_ids = fields.List(fields.Int(), validate=validate.Length(min=1, max=100))
-    retry_failed_only = fields.Bool(missing=True)
+    retry_failed_only = fields.Bool(load_default=True)
 
 
 class URLParseSchema(Schema):
@@ -56,14 +56,14 @@ class ManualSyncSchema(Schema):
     )
     source_platform = fields.Str(required=True, validate=validate.OneOf(['feishu', 'notion']))
     target_platform = fields.Str(required=True, validate=validate.OneOf(['feishu', 'notion']))
-    force_resync = fields.Bool(missing=False)
+    force_resync = fields.Bool(load_default=False)
 
 
 class FolderScanSchema(Schema):
     """文件夹扫描验证模式"""
     folder_path = fields.Str(required=True, validate=validate.Length(min=1, max=500))
-    max_depth = fields.Int(missing=2, validate=validate.Range(min=1, max=5))
-    use_cache = fields.Bool(missing=True)
+    max_depth = fields.Int(load_default=2, validate=validate.Range(min=1, max=5))
+    use_cache = fields.Bool(load_default=True)
 
 
 class ConfigUpdateSchema(Schema):
@@ -76,8 +76,8 @@ class ConfigUpdateSchema(Schema):
 
 class PaginationSchema(Schema):
     """分页参数验证模式"""
-    page = fields.Int(missing=1, validate=validate.Range(min=1))
-    limit = fields.Int(missing=20, validate=validate.Range(min=1, max=100))
+    page = fields.Int(load_default=1, validate=validate.Range(min=1))
+    limit = fields.Int(load_default=20, validate=validate.Range(min=1, max=100))
     
     
 class FilterSchema(Schema):
@@ -92,7 +92,7 @@ class SearchSchema(Schema):
     """搜索参数验证模式"""
     query = fields.Str(required=True, validate=validate.Length(min=1, max=100))
     search_type = fields.Str(validate=validate.OneOf(['all', 'configs', 'records', 'documents']))
-    limit = fields.Int(missing=20, validate=validate.Range(min=1, max=100))
+    limit = fields.Int(load_default=20, validate=validate.Range(min=1, max=100))
 
 
 # 自定义验证器

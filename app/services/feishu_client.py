@@ -24,6 +24,9 @@ class FeishuClient:
     
     def _get_access_token(self) -> str:
         """获取访问令牌"""
+        if not self.app_id or not self.app_secret:
+            raise Exception("飞书应用配置未设置，请检查 FEISHU_APP_ID 和 FEISHU_APP_SECRET 环境变量")
+        
         if self._access_token and time.time() < self._token_expires_at:
             return self._access_token
         
