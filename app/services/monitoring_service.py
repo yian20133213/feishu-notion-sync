@@ -485,10 +485,11 @@ class MonitoringService(SyncService):
                         'id': img.id,
                         'filename': img.filename,
                         'original_url': img.original_url,
+                        'qiniu_url': getattr(img, 'qiniu_url', None),
                         'local_path': img.local_path,
                         'size': img.size,
                         'mime_type': img.mime_type,
-                        'hash': img.hash,
+                        'file_hash': getattr(img, 'file_hash', None),
                         'created_at': str(img.created_at),
                         'sync_record_id': img.sync_record_id
                     } for img in images

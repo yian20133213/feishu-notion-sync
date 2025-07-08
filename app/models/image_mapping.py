@@ -35,10 +35,11 @@ class ImageMappingService:
                 return existing
             
             mapping = ImageMapping(
+                filename="",  # 临时空值
                 original_url=original_url,
                 qiniu_url=qiniu_url,
                 file_hash=file_hash,
-                file_size=file_size
+                size=file_size
             )
             
             session.add(mapping)

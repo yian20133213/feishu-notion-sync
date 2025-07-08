@@ -480,8 +480,21 @@ class NotionClient:
         
         try:
             blocks = feishu_content.get("blocks", [])
+            document_title = feishu_content.get('title', '')
+            # 规范化标题，用于比较
+            normalized_title = document_title.strip().lower()
             
             for block in blocks:
+                # 跳过与文档标题重复的heading1块，避免重复标题
+                block_type = block.get("type")
+                block_content = block.get("content", "")
+                
+                if block_type == 'heading1' and block_content:
+                    normalized_block_content = block_content.strip().lower()
+                    if normalized_block_content == normalized_title:
+                        logger.info(f"跳过重复的标题块: {block_content}")
+                        continue
+                
                 notion_block = self._convert_block(block)
                 if notion_block:
                     notion_blocks.append(notion_block)

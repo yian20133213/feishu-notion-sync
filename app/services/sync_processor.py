@@ -131,12 +131,12 @@ class SyncProcessor:
                 
                 # 保存图片映射到数据库
                 for file_token, mapping in image_mappings.items():
-                    if mapping.get('cdn_url'):
+                    if mapping.get('cdn_url') and not mapping.get('error'):
                         ImageMappingService.create_image_mapping(
                             original_url=f"feishu://{file_token}",
                             qiniu_url=mapping['cdn_url'],
-                            file_hash=mapping['file_hash'],
-                            file_size=mapping['file_size']
+                            file_hash=mapping.get('file_hash', ''),
+                            file_size=mapping.get('file_size', 0)
                         )
             
             # 3. 更新Notion块中的图片链接
@@ -183,7 +183,7 @@ class SyncProcessor:
                     },
                     "status": {
                         "select": {
-                            "name": "Draft"
+                            "name": "Published"
                         }
                     },
                     "category": {
@@ -251,12 +251,12 @@ class SyncProcessor:
                 
                 # 保存图片映射到数据库
                 for file_token, mapping in image_mappings.items():
-                    if mapping.get('cdn_url'):
+                    if mapping.get('cdn_url') and not mapping.get('error'):
                         ImageMappingService.create_image_mapping(
                             original_url=f"feishu://{file_token}",
                             qiniu_url=mapping['cdn_url'],
-                            file_hash=mapping['file_hash'],
-                            file_size=mapping['file_size']
+                            file_hash=mapping.get('file_hash', ''),
+                            file_size=mapping.get('file_size', 0)
                         )
             
             # 3. 更新Notion块中的图片链接
@@ -336,7 +336,7 @@ class SyncProcessor:
                     },
                     "status": {
                         "select": {
-                            "name": "Draft"
+                            "name": "Published"
                         }
                     },
                     "category": {

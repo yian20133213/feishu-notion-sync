@@ -297,7 +297,43 @@ class FeishuClient:
             raise
     
     def download_file(self, file_token: str) -> bytes:
-        """下载文件内容"""
+        """下载文件内容 - 优先尝试图片预览API，回退到文件下载API"""
+        
+        # 首先尝试图片预览API（通常对图片文件更有效）
+        try:
+            return self._download_image_preview(file_token)
+        except Exception as preview_error:
+            self.logger.warning(f"Image preview API failed for {file_token}: {preview_error}")
+            
+            # 回退到标准文件下载API
+            try:
+                return self._download_file_standard(file_token)
+            except Exception as download_error:
+                self.logger.error(f"Both image preview and file download failed for {file_token}")
+                raise download_error
+    
+    def _download_image_preview(self, file_token: str) -> bytes:
+        """使用图片预览API下载图片"""
+        endpoint = f"drive/v1/medias/{file_token}/download"
+        
+        try:
+            token = self._get_access_token()
+            headers = {"Authorization": f"Bearer {token}"}
+            
+            url = f"{self.base_url}/{endpoint}"
+            with httpx.Client() as client:
+                response = client.get(url, headers=headers, timeout=30)
+                response.raise_for_status()
+            
+            self.logger.info(f"Successfully downloaded image via preview API: {file_token}")
+            return response.content
+        
+        except Exception as e:
+            self.logger.error(f"Error downloading image via preview API {file_token}: {e}")
+            raise
+    
+    def _download_file_standard(self, file_token: str) -> bytes:
+        """使用标准文件下载API"""
         endpoint = f"drive/v1/files/{file_token}/download"
         
         try:
@@ -309,11 +345,11 @@ class FeishuClient:
                 response = client.get(url, headers=headers, timeout=30)
                 response.raise_for_status()
             
-            self.logger.info(f"Successfully downloaded file {file_token}")
+            self.logger.info(f"Successfully downloaded file via standard API: {file_token}")
             return response.content
         
         except Exception as e:
-            self.logger.error(f"Error downloading file {file_token}: {e}")
+            self.logger.error(f"Error downloading file via standard API {file_token}: {e}")
             raise
     
     def get_bitable_tables(self, app_token: str) -> List[Dict[str, Any]]:

@@ -299,6 +299,9 @@ class DocumentService(SyncService):
             
             # Convert feishu content to Notion blocks
             document_title = feishu_content.get('title', '')
+            # 规范化标题，用于比较
+            normalized_title = document_title.strip().lower()
+            
             for block in feishu_content.get('blocks', []):
                 block_type = block.get('type')
                 block_content = block.get('content', '')
@@ -308,8 +311,15 @@ class DocumentService(SyncService):
                     continue
                 
                 # 跳过与文档标题重复的heading1块，避免重复标题
-                if block_type == 'heading1' and block_content and block_content.strip() == document_title.strip():
-                    continue
+                # 使用更严格的比较逻辑
+                if block_type == 'heading1' and block_content:
+                    normalized_block_content = block_content.strip().lower()
+                    # 如果内容与文档标题完全匹配，或者是第一个heading1块且内容相似，则跳过
+                    if (normalized_block_content == normalized_title or 
+                        (len([b for b in feishu_content.get('blocks', []) if b.get('type') == 'heading1' and b.get('content')]) == 1 and
+                         normalized_block_content in normalized_title or normalized_title in normalized_block_content)):
+                        self.logger.info(f"跳过重复的标题块: {block_content}")
+                        continue
                 
                 if block_type in ['text']:
                     content_blocks.append({
@@ -401,25 +411,35 @@ class DocumentService(SyncService):
                             # 根据错误类型提供更友好的错误消息
                             error_message = str(e)
                             if "飞书应用配置未设置" in error_message:
-                                friendly_message = "🖼️ 图片处理失败 (飞书配置未设置)\n请配置 FEISHU_APP_ID 和 FEISHU_APP_SECRET 环境变量"
+                                friendly_message = "图片处理失败 (飞书配置未设置)"
+                                fallback_url = "https://via.placeholder.com/400x300/f0f0f0/666?text=飞书配置未设置"
                             elif "403" in error_message or "Forbidden" in error_message:
-                                friendly_message = f"🖼️ 图片访问权限不足 ({alt_text})\n文件可能已被删除或应用缺少权限"
+                                friendly_message = f"图片访问权限不足 ({alt_text})"
+                                fallback_url = "https://via.placeholder.com/400x300/f0f0f0/666?text=权限不足"
                             elif "404" in error_message or "Not Found" in error_message:
-                                friendly_message = f"🖼️ 图片文件不存在 ({alt_text})\n文件可能已被删除或移动"
+                                friendly_message = f"图片文件不存在 ({alt_text})"
+                                fallback_url = "https://via.placeholder.com/400x300/f0f0f0/666?text=文件不存在"
                             else:
-                                friendly_message = f"🖼️ 图片处理失败 ({alt_text})\n错误: {error_message}"
+                                friendly_message = f"图片处理失败 ({alt_text})"
+                                fallback_url = "https://via.placeholder.com/400x300/f0f0f0/666?text=处理失败"
                             
-                            # 如果图片处理失败，创建占位符
+                            # 如果图片处理失败，创建带有占位符图片的图片块
                             content_blocks.append({
                                 "object": "block",
-                                "type": "paragraph",
-                                "paragraph": {
-                                    "rich_text": [{
-                                        "type": "text",
-                                        "text": {
-                                            "content": friendly_message
+                                "type": "image",
+                                "image": {
+                                    "type": "external",
+                                    "external": {
+                                        "url": fallback_url
+                                    },
+                                    "caption": [
+                                        {
+                                            "type": "text",
+                                            "text": {
+                                                "content": friendly_message
+                                            }
                                         }
-                                    }]
+                                    ]
                                 }
                             })
                 else:
@@ -505,7 +525,7 @@ class DocumentService(SyncService):
                 },
                 "status": {
                     "select": {
-                        "name": "Draft"
+                        "name": "Published"
                     }
                 },
                 "category": {

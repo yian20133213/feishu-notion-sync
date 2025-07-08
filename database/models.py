@@ -47,10 +47,11 @@ class ImageMapping(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     filename = Column(String(255), nullable=False)
     original_url = Column(String(500), nullable=True)
+    qiniu_url = Column(String(500), nullable=True)
     local_path = Column(String(500), nullable=True)
     size = Column(Integer, nullable=True)
     mime_type = Column(String(100), nullable=True)
-    hash = Column(String(64), nullable=True)        # MD5校验和
+    file_hash = Column(String(64), nullable=True)   # MD5校验和
     created_at = Column(CompatibleTimestamp, nullable=False, default=func.now())
     sync_record_id = Column(Integer, nullable=True)  # 外键引用sync_records
     
@@ -58,7 +59,7 @@ class ImageMapping(Base):
     __table_args__ = (
         Index('idx_images_sync_record', 'sync_record_id'),
         Index('idx_original_url', 'original_url', mysql_length=255),  # 限制索引长度
-        Index('idx_file_hash', 'hash'),
+        Index('idx_file_hash', 'file_hash'),
         Index('idx_created_at', 'created_at'),  # 添加时间索引
         Index('idx_filename', 'filename'),  # 添加文件名索引
     )
