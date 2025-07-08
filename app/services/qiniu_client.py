@@ -8,7 +8,7 @@ from io import BytesIO
 from typing import Tuple, Optional
 import logging
 from PIL import Image
-import requests
+import httpx
 
 try:
     from qiniu import Auth, put_data, put_file, BucketManager
@@ -24,11 +24,12 @@ logger = logging.getLogger(__name__)
 class QiniuClient:
     """七牛云存储客户端"""
     
-    def __init__(self):
-        self.access_key = settings.qiniu_access_key
-        self.secret_key = settings.qiniu_secret_key
-        self.bucket_name = settings.qiniu_bucket
-        self.cdn_domain = settings.qiniu_cdn_domain
+    def __init__(self, access_key=None, secret_key=None, bucket_name=None, cdn_domain=None, logger=None):
+        self.access_key = access_key or settings.qiniu_access_key
+        self.secret_key = secret_key or settings.qiniu_secret_key
+        self.bucket_name = bucket_name or settings.qiniu_bucket
+        self.cdn_domain = cdn_domain or settings.qiniu_cdn_domain
+        self.logger = logger or logging.getLogger(__name__)
         
         if Auth:
             self.auth = Auth(self.access_key, self.secret_key)
@@ -36,7 +37,7 @@ class QiniuClient:
         else:
             self.auth = None
             self.bucket_manager = None
-            logger.warning("Qiniu SDK not available, using fallback methods")
+            self.logger.warning("Qiniu SDK not available, using fallback methods")
     
     def _generate_file_hash(self, data: bytes) -> str:
         """生成文件MD5哈希"""
@@ -70,6 +71,58 @@ class QiniuClient:
     def _generate_filename(self, file_hash: str, extension: str = "webp") -> str:
         """生成文件名"""
         return f"images/{file_hash}.{extension}"
+    
+    def test_connection(self) -> dict:
+        """测试七牛云存储连接"""
+        try:
+            if not self.auth or not self.bucket_manager:
+                return {
+                    "success": False,
+                    "message": "七牛云SDK不可用"
+                }
+            
+            # 测试存储空间信息
+            ret, info = self.bucket_manager.buckets()
+            
+            if info.status_code == 200:
+                bucket_list = ret
+                bucket_exists = self.bucket_name in bucket_list
+                
+                if bucket_exists:
+                    # 测试存储空间访问权限 - 尝试列举文件
+                    ret, eof, info = self.bucket_manager.list(self.bucket_name, limit=1)
+                    
+                    if info.status_code == 200:
+                        return {
+                            "success": True,
+                            "message": "七牛云存储连接正常",
+                            "bucket_name": self.bucket_name,
+                            "bucket_exists": True,
+                            "access_granted": True,
+                            "cdn_domain": self.cdn_domain
+                        }
+                    else:
+                        return {
+                            "success": False,
+                            "message": f"存储空间访问失败: {info.error}"
+                        }
+                else:
+                    return {
+                        "success": False,
+                        "message": f"存储空间 {self.bucket_name} 不存在"
+                    }
+            else:
+                return {
+                    "success": False,
+                    "message": f"获取存储空间列表失败: {info.error}"
+                }
+                
+        except Exception as e:
+            self.logger.error(f"测试七牛云存储连接失败: {e}")
+            return {
+                "success": False,
+                "message": f"连接测试失败: {str(e)}"
+            }
     
     def upload_image(self, image_data: bytes, filename: Optional[str] = None, compress: bool = True) -> Tuple[str, str, int]:
         """
@@ -154,8 +207,9 @@ class QiniuClient:
         """
         try:
             # 下载图片
-            response = requests.get(image_url, timeout=30)
-            response.raise_for_status()
+            with httpx.Client() as client:
+                response = client.get(image_url, timeout=30)
+                response.raise_for_status()
             
             image_data = response.content
             logger.info(f"Downloaded image from {image_url}, size: {len(image_data)} bytes")

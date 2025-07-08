@@ -115,47 +115,10 @@ class SyncProcessor:
                 feishu_content = self.feishu_client.parse_document_content(sync_record.source_id)
                 logger.info(f"Retrieved Feishu document: {feishu_content['title']}")
             except Exception as e:
-                # 如果获取失败，创建一个模拟文档用于测试
-                logger.warning(f"Failed to get Feishu document {sync_record.source_id}: {e}")
-                logger.info("Creating mock document for testing...")
-                feishu_content = {
-                    "title": f"测试文档 - {sync_record.source_id}",
-                    "document_id": sync_record.source_id,
-                    "type": "document",
-                    "blocks": [
-                        {
-                            "id": "block_1",
-                            "type": "heading1",
-                            "content": "这是一个测试标题",
-                            "level": 1
-                        },
-                        {
-                            "id": "block_2", 
-                            "type": "text",
-                            "content": "这是一段测试文本内容，用于验证飞书到Notion的同步功能。"
-                        },
-                        {
-                            "id": "block_3",
-                            "type": "bullet",
-                            "content": "这是一个测试列表项"
-                        },
-                        {
-                            "id": "block_4",
-                            "type": "code",
-                            "content": {
-                                "language": "python",
-                                "code": "print('Hello from Feishu to Notion sync!')"
-                            }
-                        }
-                    ],
-                    "images": [],
-                    "metadata": {
-                        "created_time": datetime.utcnow().isoformat(),
-                        "modified_time": datetime.utcnow().isoformat(),
-                        "owner_id": "test_user",
-                        "size": 1024
-                    }
-                }
+                # 不再返回测试数据，而是抛出详细错误
+                error_msg = f"获取飞书文档失败 (文档ID: {sync_record.source_id}): {str(e)}"
+                logger.error(error_msg)
+                raise Exception(error_msg)
             
             # 2. 处理图片
             image_mappings = {}
@@ -170,12 +133,10 @@ class SyncProcessor:
                 for file_token, mapping in image_mappings.items():
                     if mapping.get('cdn_url'):
                         ImageMappingService.create_image_mapping(
-                            source_platform='feishu',
-                            source_file_id=file_token,
-                            target_url=mapping['cdn_url'],
+                            original_url=f"feishu://{file_token}",
+                            qiniu_url=mapping['cdn_url'],
                             file_hash=mapping['file_hash'],
-                            file_size=mapping['file_size'],
-                            alt_text=mapping.get('alt_text', '')
+                            file_size=mapping['file_size']
                         )
             
             # 3. 更新Notion块中的图片链接
@@ -227,7 +188,7 @@ class SyncProcessor:
                     },
                     "category": {
                         "select": {
-                            "name": "技术分享"
+                            "name": notion_category or "技术分享"
                         }
                     },
                     "date": {
@@ -258,13 +219,15 @@ class SyncProcessor:
     
     def _sync_feishu_to_notion_by_data(self, record_data: Dict[str, Any]) -> Dict[str, Any]:
         """飞书到Notion的同步（使用数据字典）"""
-        return self._sync_feishu_to_notion_impl(record_data['source_id'], record_data.get('target_id'))
+        # 从配置中获取Notion分类
+        notion_category = self._get_notion_category_for_document(record_data['source_id'])
+        return self._sync_feishu_to_notion_impl(record_data['source_id'], record_data.get('target_id'), notion_category)
     
     def _sync_notion_to_feishu_by_data(self, record_data: Dict[str, Any]) -> Dict[str, Any]:
         """Notion到飞书的同步（使用数据字典）"""
         return self._sync_notion_to_feishu_impl(record_data['source_id'], record_data.get('target_id'))
     
-    def _sync_feishu_to_notion_impl(self, source_id: str, target_id: Optional[str] = None) -> Dict[str, Any]:
+    def _sync_feishu_to_notion_impl(self, source_id: str, target_id: Optional[str] = None, notion_category: Optional[str] = None) -> Dict[str, Any]:
         """飞书到Notion同步的实际实现"""
         try:
             # 1. 从飞书获取文档内容
@@ -272,47 +235,10 @@ class SyncProcessor:
                 feishu_content = self.feishu_client.parse_document_content(source_id)
                 logger.info(f"Retrieved Feishu document: {feishu_content['title']}")
             except Exception as e:
-                # 如果获取失败，创建一个模拟文档用于测试
-                logger.warning(f"Failed to get Feishu document {source_id}: {e}")
-                logger.info("Creating mock document for testing...")
-                feishu_content = {
-                    "title": f"测试文档 - {source_id}",
-                    "document_id": source_id,
-                    "type": "document",
-                    "blocks": [
-                        {
-                            "id": "block_1",
-                            "type": "heading1",
-                            "content": "这是一个测试标题",
-                            "level": 1
-                        },
-                        {
-                            "id": "block_2", 
-                            "type": "text",
-                            "content": "这是一段测试文本内容，用于验证飞书到Notion的同步功能。"
-                        },
-                        {
-                            "id": "block_3",
-                            "type": "bullet",
-                            "content": "这是一个测试列表项"
-                        },
-                        {
-                            "id": "block_4",
-                            "type": "code",
-                            "content": {
-                                "language": "python",
-                                "code": "print('Hello from Feishu to Notion sync!')"
-                            }
-                        }
-                    ],
-                    "images": [],
-                    "metadata": {
-                        "created_time": datetime.utcnow().isoformat(),
-                        "modified_time": datetime.utcnow().isoformat(),
-                        "owner_id": "test_user",
-                        "size": 1024
-                    }
-                }
+                # 不再返回测试数据，而是抛出详细错误
+                error_msg = f"获取飞书文档失败 (文档ID: {source_id}): {str(e)}"
+                logger.error(error_msg)
+                raise Exception(error_msg)
             
             # 2. 处理图片
             image_mappings = {}
@@ -327,12 +253,10 @@ class SyncProcessor:
                 for file_token, mapping in image_mappings.items():
                     if mapping.get('cdn_url'):
                         ImageMappingService.create_image_mapping(
-                            source_platform='feishu',
-                            source_file_id=file_token,
-                            target_url=mapping['cdn_url'],
+                            original_url=f"feishu://{file_token}",
+                            qiniu_url=mapping['cdn_url'],
                             file_hash=mapping['file_hash'],
-                            file_size=mapping['file_size'],
-                            alt_text=mapping.get('alt_text', '')
+                            file_size=mapping['file_size']
                         )
             
             # 3. 更新Notion块中的图片链接
@@ -358,9 +282,42 @@ class SyncProcessor:
                     target_page_id = None
             
             if not target_page_id:
-                # 创建新页面 - 在数据库中创建
+                # 先检查数据库中是否已存在同标题的页面
                 database_id = self._get_default_notion_parent()
+                existing_page = self.notion_client.find_page_in_database_by_title(database_id, feishu_content['title'])
                 
+                if existing_page:
+                    # 如果存在同标题页面，更新现有页面而不是创建新页面
+                    existing_page_id = existing_page['id']
+                    logger.info(f"Found existing page with title '{feishu_content['title']}', updating instead of creating new page: {existing_page_id}")
+                    
+                    try:
+                        result = self.notion_client.update_page_from_feishu(existing_page_id, feishu_content)
+                        
+                        # 更新同步记录的target_id，避免下次重复创建
+                        with db.get_session() as session:
+                            current_record = session.query(SyncRecord).filter(
+                                SyncRecord.source_platform == 'feishu',
+                                SyncRecord.source_id == source_id
+                            ).order_by(SyncRecord.created_at.desc()).first()
+                            
+                            if current_record and not current_record.target_id:
+                                current_record.target_id = existing_page_id
+                                current_record.updated_at = datetime.utcnow()
+                                session.commit()
+                                logger.info(f"Updated sync record {current_record.id} with target_id: {existing_page_id}")
+                        
+                        return {
+                            "action": "update_existing",
+                            "target_id": existing_page_id,
+                            "title": feishu_content['title'],
+                            "images_processed": len(image_mappings)
+                        }
+                    except Exception as e:
+                        logger.warning(f"Failed to update existing page {existing_page_id}: {e}")
+                        # 如果更新失败，继续创建新页面（但记录警告）
+                
+                # 创建新页面 - 在数据库中创建
                 # 为数据库页面创建属性
                 properties = {
                     "title": {
@@ -384,7 +341,7 @@ class SyncProcessor:
                     },
                     "category": {
                         "select": {
-                            "name": "技术分享"
+                            "name": notion_category or "技术分享"
                         }
                     },
                     "date": {
@@ -543,3 +500,25 @@ class SyncProcessor:
         except Exception as e:
             logger.error(f"Error getting sync preview: {e}")
             raise
+    
+    def _get_notion_category_for_document(self, document_id: str) -> Optional[str]:
+        """根据文档ID获取配置的Notion分类"""
+        try:
+            from database.connection import db
+            from database.models import SyncConfig
+            
+            with db.get_session() as session:
+                # 查找对应的同步配置
+                config = session.query(SyncConfig).filter(
+                    SyncConfig.platform == 'feishu',
+                    SyncConfig.document_id == document_id
+                ).first()
+                
+                if config and config.notion_category:
+                    return config.notion_category
+                
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error getting notion category for document {document_id}: {e}")
+            return None

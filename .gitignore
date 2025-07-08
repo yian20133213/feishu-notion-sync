@@ -7,6 +7,8 @@ settings.py
 *.db
 *.sqlite
 *.sqlite3
+*.db-wal
+*.db-shm
 
 # 日志文件
 *.log
@@ -75,6 +77,13 @@ nohup.out
 # 七牛云相关
 qiniu_test.py
 
+# 测试文件
+test_*.html
+test_*.py
+*test*.html
+*test*.py
+!tests/
+
 # 私有文档
 *private*
 *secret*
@@ -85,3 +94,5 @@ AI开发提示词-*.md
 项目开发总结-*.md
 飞书-Notion双向同步系统设计实战*.md
 飞书-Notion双向同步系统需求文档.md
+
+.user.ini

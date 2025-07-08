@@ -75,8 +75,9 @@ class SyncRecordService:
     @staticmethod
     def get_sync_record_by_source(source_platform: str, source_id: str) -> Optional[SyncRecord]:
         """根据源平台和源ID获取同步记录"""
-        with next(get_db_session()) as db:
-            record = db.query(SyncRecord).filter(
+        from database.connection import db
+        with db.get_session() as session:
+            record = session.query(SyncRecord).filter(
                 and_(
                     SyncRecord.source_platform == source_platform,
                     SyncRecord.source_id == source_id
@@ -92,8 +93,9 @@ class SyncRecordService:
         error_message: Optional[str] = None
     ) -> bool:
         """更新同步状态"""
-        with next(get_db_session()) as db:
-            record = db.query(SyncRecord).filter(SyncRecord.id == record_id).first()
+        from database.connection import db
+        with db.get_session() as session:
+            record = session.query(SyncRecord).filter(SyncRecord.id == record_id).first()
             if not record:
                 logger.error(f"Sync record {record_id} not found")
                 return False
@@ -117,8 +119,9 @@ class SyncRecordService:
         limit: int = 50
     ) -> List[SyncRecord]:
         """获取同步历史"""
-        with next(get_db_session()) as db:
-            query = db.query(SyncRecord)
+        from database.connection import db
+        with db.get_session() as session:
+            query = session.query(SyncRecord)
             
             if platform:
                 query = query.filter(
@@ -136,8 +139,9 @@ class SyncRecordService:
     @staticmethod
     def get_pending_syncs() -> List[SyncRecord]:
         """获取待处理的同步记录"""
-        with next(get_db_session()) as db:
-            records = db.query(SyncRecord).filter(
+        from database.connection import db
+        with db.get_session() as session:
+            records = session.query(SyncRecord).filter(
                 SyncRecord.sync_status == "pending"
             ).order_by(SyncRecord.created_at).all()
             
@@ -147,8 +151,9 @@ class SyncRecordService:
     @staticmethod
     def get_failed_syncs() -> List[SyncRecord]:
         """获取失败的同步记录"""
-        with next(get_db_session()) as db:
-            records = db.query(SyncRecord).filter(
+        from database.connection import db
+        with db.get_session() as session:
+            records = session.query(SyncRecord).filter(
                 SyncRecord.sync_status == "failed"
             ).order_by(desc(SyncRecord.updated_at)).all()
             
@@ -158,13 +163,14 @@ class SyncRecordService:
     @staticmethod
     def delete_sync_record(record_id: int) -> bool:
         """删除同步记录"""
-        with next(get_db_session()) as db:
-            record = db.query(SyncRecord).filter(SyncRecord.id == record_id).first()
+        from database.connection import db
+        with db.get_session() as session:
+            record = session.query(SyncRecord).filter(SyncRecord.id == record_id).first()
             if not record:
                 logger.error(f"Sync record {record_id} not found")
                 return False
             
-            db.delete(record)
+            session.delete(record)
             logger.info(f"Deleted sync record {record_id}")
             return True
     
@@ -205,20 +211,29 @@ class SyncRecordService:
     
     @staticmethod
     def get_sync_stats() -> Dict[str, Any]:
-        """获取同步统计信息"""
-        with next(get_db_session()) as db:
-            total = db.query(SyncRecord).count()
-            success = db.query(SyncRecord).filter(SyncRecord.sync_status == "success").count()
-            failed = db.query(SyncRecord).filter(SyncRecord.sync_status == "failed").count()
-            pending = db.query(SyncRecord).filter(SyncRecord.sync_status == "pending").count()
-            processing = db.query(SyncRecord).filter(SyncRecord.sync_status == "processing").count()
+        """获取同步统计信息（优化版本）"""
+        from database.connection import db
+        from sqlalchemy import func, case
+        
+        with db.get_session() as session:
+            # 使用单个查询获取所有统计信息
+            stats_query = session.query(
+                func.count(SyncRecord.id).label('total'),
+                func.sum(case((SyncRecord.sync_status == 'success', 1), else_=0)).label('success'),
+                func.sum(case((SyncRecord.sync_status == 'failed', 1), else_=0)).label('failed'),
+                func.sum(case((SyncRecord.sync_status == 'pending', 1), else_=0)).label('pending'),
+                func.sum(case((SyncRecord.sync_status == 'processing', 1), else_=0)).label('processing')
+            ).first()
+            
+            total = stats_query.total or 0
+            success = stats_query.success or 0
             
             stats = {
                 "total": total,
                 "success": success,
-                "failed": failed,
-                "pending": pending,
-                "processing": processing,
+                "failed": stats_query.failed or 0,
+                "pending": stats_query.pending or 0,
+                "processing": stats_query.processing or 0,
                 "success_rate": (success / total * 100) if total > 0 else 0
             }
             

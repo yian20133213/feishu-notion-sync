@@ -21,7 +21,8 @@ class SyncConfigService:
         document_id: str,
         sync_direction: str,
         is_sync_enabled: bool = True,
-        auto_sync: bool = True
+        auto_sync: bool = True,
+        notion_category: str = None
     ) -> SyncConfig:
         """创建同步配置"""
         from database.connection import db
@@ -43,7 +44,8 @@ class SyncConfigService:
                 document_id=document_id,
                 sync_direction=sync_direction,
                 is_sync_enabled=is_sync_enabled,
-                auto_sync=auto_sync
+                auto_sync=auto_sync,
+                notion_category=notion_category
             )
             
             session.add(config)
@@ -58,6 +60,7 @@ class SyncConfigService:
                 'sync_direction': config.sync_direction,
                 'is_sync_enabled': config.is_sync_enabled,
                 'auto_sync': config.auto_sync,
+                'notion_category': config.notion_category,
                 'created_at': config.created_at,
                 'updated_at': config.updated_at
             }
@@ -75,8 +78,9 @@ class SyncConfigService:
     @staticmethod
     def get_sync_config(config_id: int) -> Optional[SyncConfig]:
         """获取同步配置"""
-        with next(get_db_session()) as db:
-            config = db.query(SyncConfig).filter(SyncConfig.id == config_id).first()
+        from database.connection import db
+        with db.get_session() as session:
+            config = session.query(SyncConfig).filter(SyncConfig.id == config_id).first()
             return config
     
     @staticmethod
@@ -95,8 +99,9 @@ class SyncConfigService:
     @staticmethod
     def get_configs_by_platform(platform: str) -> List[SyncConfig]:
         """获取指定平台的所有配置"""
-        with next(get_db_session()) as db:
-            configs = db.query(SyncConfig).filter(
+        from database.connection import db
+        with db.get_session() as session:
+            configs = session.query(SyncConfig).filter(
                 SyncConfig.platform == platform
             ).order_by(desc(SyncConfig.updated_at)).all()
             
@@ -106,8 +111,9 @@ class SyncConfigService:
     @staticmethod
     def get_enabled_configs() -> List[SyncConfig]:
         """获取所有启用的同步配置"""
-        with next(get_db_session()) as db:
-            configs = db.query(SyncConfig).filter(
+        from database.connection import db
+        with db.get_session() as session:
+            configs = session.query(SyncConfig).filter(
                 SyncConfig.is_sync_enabled == True
             ).order_by(desc(SyncConfig.updated_at)).all()
             
@@ -117,8 +123,9 @@ class SyncConfigService:
     @staticmethod
     def get_auto_sync_configs() -> List[SyncConfig]:
         """获取所有自动同步配置"""
-        with next(get_db_session()) as db:
-            configs = db.query(SyncConfig).filter(
+        from database.connection import db
+        with db.get_session() as session:
+            configs = session.query(SyncConfig).filter(
                 and_(
                     SyncConfig.is_sync_enabled == True,
                     SyncConfig.auto_sync == True
@@ -133,11 +140,13 @@ class SyncConfigService:
         config_id: int,
         is_sync_enabled: Optional[bool] = None,
         sync_direction: Optional[str] = None,
-        auto_sync: Optional[bool] = None
+        auto_sync: Optional[bool] = None,
+        notion_category: Optional[str] = None
     ) -> bool:
         """更新同步配置"""
-        with next(get_db_session()) as db:
-            config = db.query(SyncConfig).filter(SyncConfig.id == config_id).first()
+        from database.connection import db
+        with db.get_session() as session:
+            config = session.query(SyncConfig).filter(SyncConfig.id == config_id).first()
             if not config:
                 logger.error(f"Sync config {config_id} not found")
                 return False
@@ -151,14 +160,18 @@ class SyncConfigService:
             if auto_sync is not None:
                 config.auto_sync = auto_sync
             
+            if notion_category is not None:
+                config.notion_category = notion_category
+            
             logger.info(f"Updated sync config {config_id}")
             return True
     
     @staticmethod
     def enable_sync(platform: str, document_id: str) -> bool:
         """启用文档同步"""
-        with next(get_db_session()) as db:
-            config = db.query(SyncConfig).filter(
+        from database.connection import db
+        with db.get_session() as session:
+            config = session.query(SyncConfig).filter(
                 and_(
                     SyncConfig.platform == platform,
                     SyncConfig.document_id == document_id
@@ -176,8 +189,9 @@ class SyncConfigService:
     @staticmethod
     def disable_sync(platform: str, document_id: str) -> bool:
         """禁用文档同步"""
-        with next(get_db_session()) as db:
-            config = db.query(SyncConfig).filter(
+        from database.connection import db
+        with db.get_session() as session:
+            config = session.query(SyncConfig).filter(
                 and_(
                     SyncConfig.platform == platform,
                     SyncConfig.document_id == document_id
@@ -195,21 +209,23 @@ class SyncConfigService:
     @staticmethod
     def delete_sync_config(config_id: int) -> bool:
         """删除同步配置"""
-        with next(get_db_session()) as db:
-            config = db.query(SyncConfig).filter(SyncConfig.id == config_id).first()
+        from database.connection import db
+        with db.get_session() as session:
+            config = session.query(SyncConfig).filter(SyncConfig.id == config_id).first()
             if not config:
                 logger.error(f"Sync config {config_id} not found")
                 return False
             
-            db.delete(config)
+            session.delete(config)
             logger.info(f"Deleted sync config {config_id}")
             return True
     
     @staticmethod
     def delete_config_by_document(platform: str, document_id: str) -> bool:
         """根据平台和文档ID删除同步配置"""
-        with next(get_db_session()) as db:
-            config = db.query(SyncConfig).filter(
+        from database.connection import db
+        with db.get_session() as session:
+            config = session.query(SyncConfig).filter(
                 and_(
                     SyncConfig.platform == platform,
                     SyncConfig.document_id == document_id
@@ -220,15 +236,16 @@ class SyncConfigService:
                 logger.warning(f"Sync config not found for {platform}:{document_id}")
                 return False
             
-            db.delete(config)
+            session.delete(config)
             logger.info(f"Deleted sync config for {platform}:{document_id}")
             return True
     
     @staticmethod
     def get_all_configs(limit: int = 100, offset: int = 0) -> List[SyncConfig]:
         """获取所有同步配置"""
-        with next(get_db_session()) as db:
-            configs = db.query(SyncConfig).order_by(
+        from database.connection import db
+        with db.get_session() as session:
+            configs = session.query(SyncConfig).order_by(
                 desc(SyncConfig.updated_at)
             ).offset(offset).limit(limit).all()
             
@@ -237,26 +254,31 @@ class SyncConfigService:
     
     @staticmethod
     def get_config_stats() -> Dict[str, Any]:
-        """获取配置统计信息"""
-        with next(get_db_session()) as db:
-            total = db.query(SyncConfig).count()
-            enabled = db.query(SyncConfig).filter(SyncConfig.is_sync_enabled == True).count()
-            auto_sync = db.query(SyncConfig).filter(
-                and_(
-                    SyncConfig.is_sync_enabled == True,
-                    SyncConfig.auto_sync == True
-                )
-            ).count()
+        """获取配置统计信息（优化版本）"""
+        from database.connection import db
+        from sqlalchemy import func, case
+        
+        with db.get_session() as session:
+            # 使用单个查询获取所有统计信息
+            stats_query = session.query(
+                func.count(SyncConfig.id).label('total'),
+                func.sum(case((SyncConfig.is_sync_enabled == True, 1), else_=0)).label('enabled'),
+                func.sum(case((
+                    and_(SyncConfig.is_sync_enabled == True, SyncConfig.auto_sync == True), 1
+                ), else_=0)).label('auto_sync'),
+                func.sum(case((SyncConfig.platform == 'feishu', 1), else_=0)).label('feishu_configs'),
+                func.sum(case((SyncConfig.platform == 'notion', 1), else_=0)).label('notion_configs')
+            ).first()
             
-            feishu_configs = db.query(SyncConfig).filter(SyncConfig.platform == "feishu").count()
-            notion_configs = db.query(SyncConfig).filter(SyncConfig.platform == "notion").count()
+            total = stats_query.total or 0
+            enabled = stats_query.enabled or 0
             
             stats = {
                 "total": total,
                 "enabled": enabled,
-                "auto_sync": auto_sync,
-                "feishu_configs": feishu_configs,
-                "notion_configs": notion_configs,
+                "auto_sync": stats_query.auto_sync or 0,
+                "feishu_configs": stats_query.feishu_configs or 0,
+                "notion_configs": stats_query.notion_configs or 0,
                 "enabled_rate": (enabled / total * 100) if total > 0 else 0
             }
             

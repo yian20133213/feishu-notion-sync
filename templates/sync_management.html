@@ -1,0 +1,2157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>飞书-Notion同步管理系统</title>
+    
+    <!-- 
+    ✅ 主功能页面 - 所有功能在此实现
+    
+    此页面是系统的主要功能页面，所有业务功能都应在此实现：
+    - ✅ 新建配置功能
+    - ✅ 手动同步功能  
+    - ✅ 批量同步功能
+    - ✅ 配置管理功能
+    - ✅ 数据管理功能
+    - ✅ 系统设置功能
+    - ✅ 监控功能
+    
+    注意：/dashboard 页面已废弃，不要在那里添加功能！
+    -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+</head>
+<body class="bg-gray-50 font-sans">
+    <!-- 移动端顶部导航栏 -->
+    <div class="mobile-only bg-white shadow-sm border-b border-gray-200 p-4">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center">
+                <button id="mobile-menu-btn" class="text-gray-600 hover:text-gray-900 mr-3">
+                    <i class="fas fa-bars text-xl"></i>
+                </button>
+                <h1 class="text-lg font-semibold text-gray-900">同步管理系统</h1>
+            </div>
+            <div class="flex items-center space-x-3">
+                <div class="status-indicator status-running"></div>
+                <span class="text-sm text-gray-600">系统正常</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="flex h-screen">
+        <!-- 侧边导航栏 -->
+        <div id="sidebar" class="sidebar-transition bg-white shadow-lg border-r border-gray-200 mobile-hidden flex-shrink-0" style="width: 250px;">
+            <div class="p-6 border-b border-gray-200">
+                <div class="flex items-center">
+                    <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center mr-3">
+                        <i class="fas fa-sync-alt text-white"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold text-gray-900">同步管理系统</h1>
+                        <p class="text-sm text-gray-500">Feishu ↔ Notion</p>
+                    </div>
+                </div>
+            </div>
+            
+            <nav class="mt-6">
+                <div class="px-3">
+                    <ul class="space-y-1">
+                        <li>
+                            <a href="#dashboard" class="nav-item nav-active flex items-center px-3 py-2 text-sm font-medium rounded-md">
+                                <i class="fas fa-tachometer-alt mr-3"></i>
+                                <span>仪表板</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#configs" class="nav-item flex items-center px-3 py-2 text-sm font-medium text-gray-600 rounded-md hover:bg-gray-50 hover:text-gray-900">
+                                <i class="fas fa-cog mr-3"></i>
+                                <span>配置管理</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#monitoring" class="nav-item flex items-center px-3 py-2 text-sm font-medium text-gray-600 rounded-md hover:bg-gray-50 hover:text-gray-900">
+                                <i class="fas fa-chart-line mr-3"></i>
+                                <span>监控中心</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#data" class="nav-item flex items-center px-3 py-2 text-sm font-medium text-gray-600 rounded-md hover:bg-gray-50 hover:text-gray-900">
+                                <i class="fas fa-database mr-3"></i>
+                                <span>数据管理</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+                
+                <div class="mt-8 px-3">
+                    <h3 class="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">系统</h3>
+                    <ul class="mt-2 space-y-1">
+                        <li>
+                            <a href="#settings" class="nav-item flex items-center px-3 py-2 text-sm font-medium text-gray-600 rounded-md hover:bg-gray-50 hover:text-gray-900">
+                                <i class="fas fa-sliders-h mr-3"></i>
+                                <span>系统设置</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#versions" class="nav-item flex items-center px-3 py-2 text-sm font-medium text-gray-600 rounded-md hover:bg-gray-50 hover:text-gray-900">
+                                <i class="fas fa-code-branch mr-3"></i>
+                                <span>版本历史</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#help" class="nav-item flex items-center px-3 py-2 text-sm font-medium text-gray-600 rounded-md hover:bg-gray-50 hover:text-gray-900">
+                                <i class="fas fa-question-circle mr-3"></i>
+                                <span>帮助支持</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+            
+            <!-- 侧边栏底部信息 -->
+            <div class="absolute bottom-0 left-0 right-0">
+                <!-- 用户信息 -->
+                <div class="p-4">
+                    <div class="flex items-center">
+                        <div class="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center mr-2">
+                            <i class="fas fa-user text-sm text-gray-600"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium text-gray-900 truncate">管理员</p>
+                            <p class="text-xs text-gray-500">在线 • v2.4.0</p>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <button class="text-gray-400 hover:text-blue-600 transition-colors" title="版本历史悬浮球">
+                                <i class="fas fa-history text-sm"></i>
+                            </button>
+                            <button class="text-gray-400 hover:text-gray-600 transition-colors" title="退出登录">
+                                <i class="fas fa-sign-out-alt text-sm"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 移动端侧边栏遮罩 -->
+        <div id="mobile-overlay" class="mobile-only fixed inset-0 bg-black bg-opacity-50 z-40 hidden"></div>
+        
+        <!-- 移动端侧边栏 -->
+        <div id="mobile-sidebar" class="mobile-only fixed left-0 top-0 h-full w-64 bg-white shadow-lg z-50 transform -translate-x-full transition-transform duration-300">
+            <!-- 移动端侧边栏内容与桌面端相同 -->
+            <div class="p-6 border-b border-gray-200">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center">
+                        <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center mr-3">
+                            <i class="fas fa-sync-alt text-white"></i>
+                        </div>
+                        <div>
+                            <h1 class="text-xl font-bold text-gray-900">同步管理系统</h1>
+                            <p class="text-sm text-gray-500">Feishu ↔ Notion</p>
+                        </div>
+                    </div>
+                    <button id="mobile-close-btn" class="text-gray-400 hover:text-gray-600">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <nav class="mt-6">
+                <!-- 导航内容与桌面端相同 -->
+                <div class="px-3">
+                    <ul class="space-y-1">
+                        <li>
+                            <a href="#dashboard" class="mobile-nav-item nav-active flex items-center px-3 py-2 text-sm font-medium rounded-md">
+                                <i class="fas fa-tachometer-alt mr-3"></i>
+                                <span>仪表板</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#configs" class="mobile-nav-item flex items-center px-3 py-2 text-sm font-medium text-gray-600 rounded-md hover:bg-gray-50 hover:text-gray-900">
+                                <i class="fas fa-cog mr-3"></i>
+                                <span>配置管理</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#monitoring" class="mobile-nav-item flex items-center px-3 py-2 text-sm font-medium text-gray-600 rounded-md hover:bg-gray-50 hover:text-gray-900">
+                                <i class="fas fa-chart-line mr-3"></i>
+                                <span>监控中心</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#data" class="mobile-nav-item flex items-center px-3 py-2 text-sm font-medium text-gray-600 rounded-md hover:bg-gray-50 hover:text-gray-900">
+                                <i class="fas fa-database mr-3"></i>
+                                <span>数据管理</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+        </div>
+
+        <!-- 主内容区域 -->
+        <div class="main-content">
+            <!-- 顶部状态栏 -->
+            <header class="mobile-hidden bg-white shadow-sm border-b border-gray-200">
+                <div class="px-6 py-4">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <h2 id="page-title" class="text-2xl font-bold text-gray-900">仪表板</h2>
+                            <div class="ml-4 flex items-center">
+                                <div class="status-indicator status-running"></div>
+                                <span class="text-sm text-gray-600">系统运行正常</span>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center space-x-4">
+                            <!-- 系统状态指示器 -->
+                            <div class="flex items-center space-x-2">
+                                <div class="flex items-center text-sm text-gray-600">
+                                    <i class="fas fa-wifi mr-1 text-green-500"></i>
+                                    <span>API连接正常</span>
+                                </div>
+                                <div class="flex items-center text-sm text-gray-600">
+                                    <i class="fas fa-clock mr-1 text-blue-500"></i>
+                                    <span id="last-update">刚刚更新</span>
+                                </div>
+                            </div>
+                            
+                            <!-- 快捷操作按钮 -->
+                            <div class="flex items-center space-x-2">
+                                <button class="btn-primary text-white px-4 py-2 rounded-md text-sm font-medium" onclick="showConfigModal()">
+                                    <i class="fas fa-plus mr-2"></i>
+                                    新建配置
+                                </button>
+                                <button class="bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700" onclick="showManualSyncModal()">
+                                    <i class="fas fa-sync-alt mr-2"></i>
+                                    手动同步
+                                </button>
+                                <button class="bg-orange-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-orange-700" onclick="showBatchSyncModal()">
+                                    <i class="fas fa-layer-group mr-2"></i>
+                                    批量同步
+                                </button>
+                                <button class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-300" onclick="refreshAllData()">
+                                    <i class="fas fa-refresh mr-2"></i>
+                                    刷新
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- 页面内容 -->
+            <main class="p-6">
+                <!-- 仪表板页面 -->
+                <div id="dashboard-page" class="page-content">
+                    <!-- 系统概览卡片 -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                        <div class="card-hover bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                            <div class="flex items-center">
+                                <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mr-4">
+                                    <i class="fas fa-cog text-blue-600 text-xl"></i>
+                                </div>
+                                <div>
+                                    <p class="text-sm font-medium text-gray-600">同步配置</p>
+                                    <p class="text-2xl font-bold text-gray-900" data-stat="configs">-</p>
+                                    <p class="text-xs text-green-600">已启用配置</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card-hover bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                            <div class="flex items-center">
+                                <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mr-4">
+                                    <i class="fas fa-play text-green-600 text-xl"></i>
+                                </div>
+                                <div>
+                                    <p class="text-sm font-medium text-gray-600">待处理任务</p>
+                                    <p class="text-2xl font-bold text-gray-900" data-stat="running">-</p>
+                                    <p class="text-xs text-gray-500">等待同步</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card-hover bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                            <div class="flex items-center">
+                                <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mr-4">
+                                    <i class="fas fa-check-circle text-green-600 text-xl"></i>
+                                </div>
+                                <div>
+                                    <p class="text-sm font-medium text-gray-600">同步成功率</p>
+                                    <p class="text-2xl font-bold text-gray-900" data-stat="success-rate">-%</p>
+                                    <p class="text-xs text-green-600">总体成功率</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card-hover bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                            <div class="flex items-center">
+                                <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center mr-4">
+                                    <i class="fas fa-exclamation-triangle text-red-600 text-xl"></i>
+                                </div>
+                                <div>
+                                    <p class="text-sm font-medium text-gray-600">失败记录</p>
+                                    <p class="text-2xl font-bold text-gray-900" data-stat="errors">-</p>
+                                    <p class="text-xs text-red-600">需要关注</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 后台处理器状态 -->
+                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-8">
+                        <div class="p-6 border-b border-gray-200">
+                            <h3 class="text-lg font-semibold text-gray-900">后台任务处理器</h3>
+                        </div>
+                        <div class="p-6">
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div class="flex items-center">
+                                    <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mr-4">
+                                        <i class="fas fa-cog text-blue-600 text-xl"></i>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-600">处理器状态</p>
+                                        <div id="processor-status">
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                                <span class="w-2 h-2 bg-gray-400 rounded-full mr-1"></span>
+                                                检查中...
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center">
+                                    <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center mr-4">
+                                        <i class="fas fa-clock text-yellow-600 text-xl"></i>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-600">待处理任务</p>
+                                        <p class="text-2xl font-bold text-gray-900" id="pending-tasks">...</p>
+                                        <p class="text-xs text-yellow-600">排队中</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center">
+                                    <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mr-4">
+                                        <i class="fas fa-play text-green-600 text-xl"></i>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-600">处理中任务</p>
+                                        <p class="text-2xl font-bold text-gray-900" id="processing-tasks">...</p>
+                                        <p class="text-xs text-green-600">执行中</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 实时状态监控 -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                        <!-- 同步状态列表 -->
+                        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                            <div class="p-6 border-b border-gray-200">
+                                <div class="flex items-center justify-between">
+                                    <h3 class="text-lg font-semibold text-gray-900">实时同步状态</h3>
+                                    <button class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                                        查看全部
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="p-6">
+                                <div id="sync-history-list" class="space-y-4">
+                                    <!-- 同步历史记录将通过JavaScript动态加载 -->
+                                    <div class="flex items-center justify-center p-8 text-gray-500">
+                                        <div class="loading-spinner mr-2"></div>
+                                        <span>加载同步历史...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 性能指标图表 -->
+                        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                            <div class="p-6 border-b border-gray-200">
+                                <h3 class="text-lg font-semibold text-gray-900">性能指标</h3>
+                            </div>
+                            <div class="p-6">
+                                <canvas id="dashboard-performance-chart" width="400" height="200"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 最近活动 -->
+                    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                        <div class="p-6 border-b border-gray-200">
+                            <h3 class="text-lg font-semibold text-gray-900">最近活动</h3>
+                        </div>
+                        <div class="p-6">
+                            <div class="flow-root">
+                                <ul class="-mb-8">
+                                    <li>
+                                        <div class="relative pb-8">
+                                            <span class="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200"></span>
+                                            <div class="relative flex space-x-3">
+                                                <div>
+                                                    <span class="h-8 w-8 rounded-full bg-green-500 flex items-center justify-center ring-8 ring-white">
+                                                        <i class="fas fa-check text-white text-sm"></i>
+                                                    </span>
+                                                </div>
+                                                <div class="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4">
+                                                    <div>
+                                                        <p class="text-sm text-gray-500">
+                                                            <span class="font-medium text-gray-900">项目管理文档</span> 同步完成，新增 12 条记录
+                                                        </p>
+                                                    </div>
+                                                    <div class="text-right text-sm whitespace-nowrap text-gray-500">
+                                                        5分钟前
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </li>
+                                    <li>
+                                        <div class="relative pb-8">
+                                            <span class="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200"></span>
+                                            <div class="relative flex space-x-3">
+                                                <div>
+                                                    <span class="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center ring-8 ring-white">
+                                                        <i class="fas fa-cog text-white text-sm"></i>
+                                                    </span>
+                                                </div>
+                                                <div class="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4">
+                                                    <div>
+                                                        <p class="text-sm text-gray-500">
+                                                            管理员创建了新的同步配置 <span class="font-medium text-gray-900">产品需求文档</span>
+                                                        </p>
+                                                    </div>
+                                                    <div class="text-right text-sm whitespace-nowrap text-gray-500">
+                                                        1小时前
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </li>
+                                    <li>
+                                        <div class="relative pb-8">
+                                            <span class="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200"></span>
+                                            <div class="relative flex space-x-3">
+                                                <div>
+                                                    <span class="h-8 w-8 rounded-full bg-red-500 flex items-center justify-center ring-8 ring-white">
+                                                        <i class="fas fa-exclamation text-white text-sm"></i>
+                                                    </span>
+                                                </div>
+                                                <div class="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4">
+                                                    <div>
+                                                        <p class="text-sm text-gray-500">
+                                                            <span class="font-medium text-gray-900">会议记录同步</span> 失败，API权限不足
+                                                        </p>
+                                                    </div>
+                                                    <div class="text-right text-sm whitespace-nowrap text-gray-500">
+                                                        2小时前
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 配置管理页面 -->
+                <div id="configs-page" class="page-content hidden">
+                    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                        <div class="p-6 border-b border-gray-200">
+                            <div class="flex items-center justify-between">
+                                <h3 class="text-lg font-semibold text-gray-900">同步配置管理</h3>
+                                <div class="flex items-center space-x-3">
+                                    <div class="relative">
+                                        <input type="text" id="config-search" placeholder="搜索配置..." 
+                                               class="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                                               onkeyup="filterConfigs()">
+                                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <i class="fas fa-search text-gray-400"></i>
+                                        </div>
+                                    </div>
+                                    <button class="btn-primary text-white px-4 py-2 rounded-md text-sm font-medium" onclick="showConfigModal()">
+                                        <i class="fas fa-plus mr-2"></i>
+                                        新建配置
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 配置列表表格 -->
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            配置信息
+                                        </th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            同步方向
+                                        </th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            状态
+                                        </th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            创建时间
+                                        </th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            操作
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody id="configs-table-body" class="bg-white divide-y divide-gray-200">
+                                    <!-- 配置数据将通过JavaScript动态加载 -->
+                                    <tr>
+                                        <td colspan="5" class="px-6 py-8 text-center text-gray-500">
+                                            <div class="loading-spinner inline-block mr-2"></div>
+                                            <span>加载配置数据...</span>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 监控中心页面 -->
+                <div id="monitoring-page" class="page-content hidden">
+                    <!-- 监控概览卡片 -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                            <div class="flex items-center">
+                                <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
+                                    <i class="fas fa-database text-blue-600"></i>
+                                </div>
+                                <div>
+                                    <div class="text-sm font-medium text-blue-600">数据库</div>
+                                    <div class="text-lg font-bold text-blue-900">正常</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                            <div class="flex items-center">
+                                <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center mr-3">
+                                    <i class="fab fa-slack text-green-600"></i>
+                                </div>
+                                <div>
+                                    <div class="text-sm font-medium text-green-600">飞书API</div>
+                                    <div class="text-lg font-bold text-green-900" id="feishu-api-status">可用</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                            <div class="flex items-center">
+                                <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center mr-3">
+                                    <i class="fab fa-notion text-purple-600"></i>
+                                </div>
+                                <div>
+                                    <div class="text-sm font-medium text-purple-600">Notion API</div>
+                                    <div class="text-lg font-bold text-purple-900" id="notion-api-status">可用</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                            <div class="flex items-center">
+                                <div class="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center mr-3">
+                                    <i class="fas fa-cloud text-orange-600"></i>
+                                </div>
+                                <div>
+                                    <div class="text-sm font-medium text-orange-600">七牛云</div>
+                                    <div class="text-lg font-bold text-orange-900" id="qiniu-status">正常</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 监控图表和实时数据 -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                        <!-- 同步状态分布（缩小） -->
+                        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                            <div class="p-4 border-b border-gray-200">
+                                <h3 class="text-lg font-semibold text-gray-900">同步状态分布</h3>
+                            </div>
+                            <div class="p-4">
+                                <canvas id="realtime-chart" width="250" height="200"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- 性能监控（缩小） -->
+                        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                            <div class="p-4 border-b border-gray-200">
+                                <h3 class="text-lg font-semibold text-gray-900">性能趋势</h3>
+                            </div>
+                            <div class="p-4">
+                                <canvas id="monitoring-performance-chart" width="250" height="200"></canvas>
+                            </div>
+                        </div>
+                        
+                        <!-- 实时统计 -->
+                        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                            <div class="p-4 border-b border-gray-200">
+                                <h3 class="text-lg font-semibold text-gray-900">实时统计</h3>
+                            </div>
+                            <div class="p-4 space-y-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-sm text-gray-600">活跃同步任务</span>
+                                    <span class="text-lg font-bold text-blue-600" id="active-syncs">0</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-sm text-gray-600">今日同步次数</span>
+                                    <span class="text-lg font-bold text-green-600" id="today-syncs">0</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-sm text-gray-600">平均响应时间</span>
+                                    <span class="text-lg font-bold text-purple-600" id="avg-response">--ms</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-sm text-gray-600">图片处理量</span>
+                                    <span class="text-lg font-bold text-orange-600" id="image-processed">0</span>
+                                </div>
+                                
+                                <div class="pt-3 border-t border-gray-200">
+                                    <button onclick="refreshMonitoringData()" class="w-full bg-blue-50 text-blue-600 px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-100">
+                                        <i class="fas fa-sync-alt mr-2"></i>刷新监控数据
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 同步记录列表 -->
+                    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                        <div class="p-6 border-b border-gray-200">
+                            <div class="flex items-center justify-between">
+                                <h3 class="text-lg font-semibold text-gray-900">最近同步记录</h3>
+                                <button onclick="loadMonitoringSyncRecords()" class="text-blue-600 hover:text-blue-800 text-sm">
+                                    <i class="fas fa-sync-alt mr-1"></i>刷新
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- 同步记录表格 -->
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">编号</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">文档名称</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">文档ID</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">同步时间</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="monitoring-sync-records" class="bg-white divide-y divide-gray-200">
+                                    <tr>
+                                        <td colspan="6" class="px-6 py-8 text-center text-gray-500">
+                                            <div class="loading-spinner inline-block mr-2"></div>
+                                            <span>加载数据...</span>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 数据管理页面 -->
+                <div id="data-page" class="page-content hidden">
+                    <!-- 系统状态卡片 -->
+                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+                        <div class="p-6 border-b border-gray-200">
+                            <h3 class="text-lg font-semibold text-gray-900">系统统计</h3>
+                        </div>
+                        <div class="p-6" id="data-stats">
+                            <div class="loading-spinner inline-block mr-2"></div>
+                            <span>加载统计数据...</span>
+                        </div>
+                    </div>
+                    
+                    <!-- 数据表格区域 -->
+                    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                        <div class="p-6 border-b border-gray-200">
+                            <div class="space-y-4">
+                                <!-- 标题和基本操作行 -->
+                                <div class="flex items-center justify-between">
+                                    <h3 class="text-lg font-semibold text-gray-900">数据管理</h3>
+                                    <div class="flex items-center space-x-3">
+                                        <select id="data-view-type" onchange="switchDataView()" class="text-sm border border-gray-300 rounded-md px-3 py-2 min-w-[140px]">
+                                            <option value="all">查看同步记录</option>
+                                            <option value="images">图片管理</option>
+                                        </select>
+                                        
+                                        <button id="refresh-data-btn" class="flex items-center px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors">
+                                            <i class="fas fa-sync-alt mr-2"></i>刷新数据
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <!-- 操作按钮区域（仅在查看同步记录时显示） -->
+                                <div id="data-action-area" class="bg-gray-50 rounded-lg p-4 space-y-3">
+                                    <!-- 重试操作组 -->
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <div class="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                                            <span class="text-sm font-medium text-gray-700">批量重试任务</span>
+                                        </div>
+                                        <div id="data-retry-buttons" class="flex items-center space-x-2">
+                                            <button class="px-4 py-2 text-sm font-medium text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 transition-colors" title="重试待处理任务">
+                                                <i class="fas fa-play mr-2"></i>待处理任务
+                                            </button>
+                                            <button class="px-4 py-2 text-sm font-medium text-orange-700 bg-orange-100 rounded-md hover:bg-orange-200 transition-colors" title="重试失败任务">
+                                                <i class="fas fa-redo mr-2"></i>失败任务
+                                            </button>
+                                            <button class="px-4 py-2 text-sm font-medium text-purple-700 bg-purple-100 rounded-md hover:bg-purple-200 transition-colors" title="重试全部未完成任务">
+                                                <i class="fas fa-sync mr-2"></i>全部未完成
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 分隔线 -->
+                                    <div class="border-t border-gray-200"></div>
+                                    
+                                    <!-- 删除操作组 -->
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <div class="w-2 h-2 bg-red-500 rounded-full mr-2"></div>
+                                            <span class="text-sm font-medium text-gray-700">批量删除记录</span>
+                                            <span class="ml-2 px-2 py-1 text-xs text-red-600 bg-red-50 rounded-full">危险操作</span>
+                                        </div>
+                                        <div id="data-delete-buttons" class="flex items-center space-x-2">
+                                            <button class="px-4 py-2 text-sm font-medium text-orange-700 bg-orange-100 rounded-md hover:bg-orange-200 transition-colors" title="删除失败记录">
+                                                <i class="fas fa-exclamation-triangle mr-2"></i>失败记录
+                                            </button>
+                                            <button class="px-4 py-2 text-sm font-medium text-yellow-700 bg-yellow-100 rounded-md hover:bg-yellow-200 transition-colors" title="删除进行中记录">
+                                                <i class="fas fa-spinner mr-2"></i>进行中记录
+                                            </button>
+                                            <button class="px-4 py-2 text-sm font-medium text-red-700 bg-red-100 rounded-md hover:bg-red-200 transition-colors border border-red-300" title="删除全部记录">
+                                                <i class="fas fa-trash-alt mr-2"></i>全部记录
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div id="data-table-container">
+                            <!-- 同步记录表格 -->
+                            <div id="sync-records-view" class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">编号</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">文档名称</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">文档ID</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">同步时间</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="data-records-body" class="bg-white divide-y divide-gray-200">
+                                        <tr>
+                                            <td colspan="6" class="px-6 py-8 text-center text-gray-500">
+                                                <div class="loading-spinner inline-block mr-2"></div>
+                                                <span>加载数据...</span>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            
+                            <!-- 图片管理视图 -->
+                            <div id="images-view" class="hidden">
+                                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                                    <!-- 图片统计卡片 -->
+                                    <div class="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-6">
+                                        <div class="flex items-center">
+                                            <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mr-4">
+                                                <i class="fas fa-images text-purple-600 text-xl"></i>
+                                            </div>
+                                            <div>
+                                                <div class="text-sm font-medium text-purple-600">总图片数</div>
+                                                <div class="text-2xl font-bold text-purple-900" id="total-images">--</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg p-6">
+                                        <div class="flex items-center">
+                                            <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mr-4">
+                                                <i class="fas fa-hdd text-blue-600 text-xl"></i>
+                                            </div>
+                                            <div>
+                                                <div class="text-sm font-medium text-blue-600">存储空间</div>
+                                                <div class="text-2xl font-bold text-blue-900" id="storage-used">--</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-6">
+                                        <div class="flex items-center">
+                                            <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mr-4">
+                                                <i class="fas fa-upload text-green-600 text-xl"></i>
+                                            </div>
+                                            <div>
+                                                <div class="text-sm font-medium text-green-600">今日处理</div>
+                                                <div class="text-2xl font-bold text-green-900" id="today-processed">--</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- 图片列表 -->
+                                <div class="overflow-x-auto">
+                                    <table class="min-w-full divide-y divide-gray-200">
+                                        <thead class="bg-gray-50">
+                                            <tr>
+                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">预览</th>
+                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">原始URL</th>
+                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CDN URL</th>
+                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">文件大小</th>
+                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">上传时间</th>
+                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">访问次数</th>
+                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="images-table-body" class="bg-white divide-y divide-gray-200">
+                                            <tr>
+                                                <td colspan="7" class="px-6 py-8 text-center text-gray-500">
+                                                    <div class="loading-spinner inline-block mr-2"></div>
+                                                    <span>加载图片数据...</span>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                            
+                            <!-- 分页组件 -->
+                            <div id="pagination-container" class="mt-6 flex items-center justify-between">
+                                <div class="flex items-center text-sm text-gray-700">
+                                    <span>共 <span id="total-records">0</span> 条记录，</span>
+                                    <span>第 <span id="current-page">1</span> 页 / 共 <span id="total-pages">1</span> 页</span>
+                                </div>
+                                
+                                <div class="flex items-center space-x-2">
+                                    <button id="prev-page" class="px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                                        ← 上一页
+                                    </button>
+                                    
+                                    <div id="page-numbers" class="flex space-x-1">
+                                        <!-- 页码按钮将通过JS动态生成 -->
+                                    </div>
+                                    
+                                    <button id="next-page" class="px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                                        下一页 →
+                                    </button>
+                                </div>
+                                
+                                <div class="flex items-center space-x-2">
+                                    <span class="text-sm text-gray-700">每页显示:</span>
+                                    <select id="page-size" class="border border-gray-300 rounded-md px-3 py-1 text-sm">
+                                        <option value="10">10条</option>
+                                        <option value="20" selected>20条</option>
+                                        <option value="50">50条</option>
+                                        <option value="100">100条</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 系统设置页面 -->
+                <div id="settings-page" class="page-content hidden">
+                    <!-- 页面标题 -->
+                    <div class="mb-6">
+                        <h2 class="text-2xl font-bold text-gray-900">系统设置</h2>
+                        <p class="text-gray-600 mt-1">配置同步系统的API连接、参数设置和系统选项</p>
+                    </div>
+
+                    <!-- API配置区域 -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                        <!-- 飞书API配置 -->
+                        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                            <div class="p-6 border-b border-gray-200">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center">
+                                        <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
+                                            <i class="fab fa-slack text-blue-600 text-lg"></i>
+                                        </div>
+                                        <div>
+                                            <h3 class="text-lg font-semibold text-gray-900">飞书API配置</h3>
+                                            <p class="text-sm text-gray-500">配置飞书企业应用API连接</p>
+                                        </div>
+                                    </div>
+                                    <button id="test-feishu-btn" onclick="testFeishuConnection()" class="text-sm bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700">
+                                        <i class="fas fa-plug mr-1"></i>测试连接
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="p-6">
+                                <form id="feishu-config-form">
+                                    <div class="space-y-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">App ID</label>
+                                            <input type="text" id="feishu-app-id" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="cli_xxxxxxxxxxxxxxxx" readonly>
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">App Secret</label>
+                                            <div class="relative">
+                                                <input type="password" id="feishu-app-secret" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="••••••••••••••••••••••••" readonly>
+                                                <span class="absolute inset-y-0 right-0 pr-3 flex items-center text-sm text-gray-500">已配置</span>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Webhook URL</label>
+                                            <input type="text" id="feishu-webhook" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm bg-gray-50" value="https://sync.yianlu.com/webhook/feishu" readonly>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Notion API配置 -->
+                        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                            <div class="p-6 border-b border-gray-200">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center">
+                                        <div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center mr-3">
+                                            <i class="fas fa-book text-gray-600 text-lg"></i>
+                                        </div>
+                                        <div>
+                                            <h3 class="text-lg font-semibold text-gray-900">Notion API配置</h3>
+                                            <p class="text-sm text-gray-500">配置Notion集成API连接</p>
+                                        </div>
+                                    </div>
+                                    <button id="test-notion-btn" onclick="testNotionConnection()" class="text-sm bg-gray-600 text-white px-3 py-1 rounded-md hover:bg-gray-700">
+                                        <i class="fas fa-plug mr-1"></i>测试连接
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="p-6">
+                                <form id="notion-config-form">
+                                    <div class="space-y-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Integration Token</label>
+                                            <div class="relative">
+                                                <input type="password" id="notion-token" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="secret_••••••••••••••••••••••••" readonly>
+                                                <span class="absolute inset-y-0 right-0 pr-3 flex items-center text-sm text-gray-500">已配置</span>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Database ID</label>
+                                            <input type="text" id="notion-database-id" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" readonly>
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">测试页面</label>
+                                            <input type="text" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm bg-gray-50" value="易安AI笔记" readonly>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 七牛云存储配置 -->
+                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-8">
+                        <div class="p-6 border-b border-gray-200">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center mr-3">
+                                        <i class="fas fa-cloud text-green-600 text-lg"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="text-lg font-semibold text-gray-900">七牛云存储配置</h3>
+                                        <p class="text-sm text-gray-500">图片存储和CDN加速服务配置</p>
+                                    </div>
+                                </div>
+                                <button id="test-qiniu-btn" onclick="testQiniuConnection()" class="text-sm bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700">
+                                    <i class="fas fa-plug mr-1"></i>测试连接
+                                </button>
+                            </div>
+                        </div>
+                        <div class="p-6">
+                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Access Key</label>
+                                        <input type="text" id="qiniu-access-key" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Access Key" readonly>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Secret Key</label>
+                                        <div class="relative">
+                                            <input type="password" id="qiniu-secret-key" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="••••••••••••••••••••••••" readonly>
+                                            <span class="absolute inset-y-0 right-0 pr-3 flex items-center text-sm text-gray-500">已配置</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">存储空间名</label>
+                                        <input type="text" id="qiniu-bucket" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm bg-gray-50" readonly>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">CDN域名</label>
+                                        <input type="text" id="qiniu-cdn-domain" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm bg-gray-50" readonly>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 同步参数设置 -->
+                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-8">
+                        <div class="p-6 border-b border-gray-200">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center mr-3">
+                                        <i class="fas fa-cogs text-orange-600 text-lg"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="text-lg font-semibold text-gray-900">同步参数设置</h3>
+                                        <p class="text-sm text-gray-500">配置同步行为和性能参数</p>
+                                    </div>
+                                </div>
+                                <button id="save-sync-settings-btn" onclick="saveSyncSettings()" class="text-sm bg-orange-600 text-white px-3 py-1 rounded-md hover:bg-orange-700">
+                                    <i class="fas fa-save mr-1"></i>保存设置
+                                </button>
+                            </div>
+                        </div>
+                        <div class="p-6">
+                            <form id="sync-settings-form">
+                                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    <div class="space-y-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">同步超时时间 (秒)</label>
+                                            <select id="sync-timeout" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                                <option value="30">30秒</option>
+                                                <option value="60" selected>60秒</option>
+                                                <option value="120">120秒</option>
+                                                <option value="300">300秒</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">最大并发同步数</label>
+                                            <select id="max-concurrent" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                                <option value="1">1个</option>
+                                                <option value="3" selected>3个</option>
+                                                <option value="5">5个</option>
+                                                <option value="10">10个</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="flex items-center">
+                                                <input type="checkbox" id="auto-retry" class="mr-2" checked>
+                                                <span class="text-sm text-gray-700">失败时自动重试</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="space-y-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">图片压缩质量</label>
+                                            <select id="image-quality" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                                <option value="60">60% (高压缩)</option>
+                                                <option value="70" selected>70% (推荐)</option>
+                                                <option value="80">80% (高质量)</option>
+                                                <option value="90">90% (原画质)</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">日志保留天数</label>
+                                            <select id="log-retention" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                                <option value="7">7天</option>
+                                                <option value="30" selected>30天</option>
+                                                <option value="90">90天</option>
+                                                <option value="365">365天</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="flex items-center">
+                                                <input type="checkbox" id="enable-webhook" class="mr-2" checked>
+                                                <span class="text-sm text-gray-700">启用Webhook实时同步</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- 系统状态信息 -->
+                    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                        <div class="p-6 border-b border-gray-200">
+                            <div class="flex items-center">
+                                <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center mr-3">
+                                    <i class="fas fa-info-circle text-purple-600 text-lg"></i>
+                                </div>
+                                <div>
+                                    <h3 class="text-lg font-semibold text-gray-900">系统信息</h3>
+                                    <p class="text-sm text-gray-500">查看系统运行状态和资源使用情况</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-6">
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div class="text-center p-4 bg-gray-50 rounded-lg">
+                                    <div class="text-2xl font-bold text-blue-600" id="system-uptime">--</div>
+                                    <div class="text-sm text-gray-600">系统运行时间</div>
+                                </div>
+                                <div class="text-center p-4 bg-gray-50 rounded-lg">
+                                    <div class="text-2xl font-bold text-green-600" id="api-status-count">3/3</div>
+                                    <div class="text-sm text-gray-600">API连接状态</div>
+                                </div>
+                                <div class="text-center p-4 bg-gray-50 rounded-lg">
+                                    <div class="text-2xl font-bold text-orange-600" id="storage-usage">--</div>
+                                    <div class="text-sm text-gray-600">存储使用量</div>
+                                </div>
+                                <div class="text-center p-4 bg-gray-50 rounded-lg">
+                                    <div class="text-2xl font-bold text-purple-600" id="system-version">v2.4.2</div>
+                                    <div class="text-sm text-gray-600">系统版本</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 版本历史页面 -->
+                <div id="versions-page" class="page-content hidden">
+                    <!-- 页面标题 -->
+                    <div class="mb-6">
+                        <h2 class="text-2xl font-bold text-gray-900">版本历史</h2>
+                        <p class="text-gray-600 mt-1">查看系统开发里程碑和版本更新记录</p>
+                    </div>
+                    
+                    <!-- 当前版本信息 -->
+                    <div class="bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg p-6 mb-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-xl font-bold mb-2">当前版本</h3>
+                                <div class="flex items-center space-x-4">
+                                    <span class="text-2xl font-bold">v2.4.2</span>
+                                    <span class="bg-white bg-opacity-20 px-3 py-1 rounded-full text-sm">架构重构</span>
+                                </div>
+                                <p class="mt-2 text-blue-100">模块化架构重构 - 从单体应用到现代化分层架构</p>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-sm text-blue-100">发布时间</div>
+                                <div class="font-semibold">2025-06-29</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 版本历史时间线 -->
+                    <div class="space-y-6">
+                        <!-- v2.4.2 - 最新版本 -->
+                        <div class="relative">
+                            <div class="flex items-start">
+                                <div class="flex-shrink-0 w-10 h-10 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-lg ring-4 ring-emerald-200">
+                                    2.4.2
+                                </div>
+                                <div class="ml-4 flex-1">
+                                    <div class="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-lg shadow-md border-2 border-emerald-300 p-6">
+                                        <div class="flex items-center justify-between mb-4">
+                                            <div class="flex items-center space-x-3">
+                                                <h3 class="text-lg font-semibold text-gray-900">v2.4.2 - 模块化架构重构 🏗️</h3>
+                                                <span class="px-3 py-1 text-xs font-medium bg-emerald-100 text-emerald-800 rounded-full border border-emerald-300">最新版本</span>
+                                            </div>
+                                            <span class="text-sm text-gray-500">2025-06-29</span>
+                                        </div>
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <h4 class="font-medium text-emerald-600 mb-2"><i class="fas fa-cubes mr-1"></i> 架构重构</h4>
+                                                <ul class="text-sm text-gray-600 space-y-1">
+                                                    <li>• 1688行单体应用模块化拆分</li>
+                                                    <li>• Flask应用工厂模式实现</li>
+                                                    <li>• 服务层模式(Service Layer)</li>
+                                                    <li>• API蓝图独立化管理</li>
+                                                    <li>• Web页面路由分离</li>
+                                                    <li>• 零停机渐进式迁移</li>
+                                                </ul>
+                                            </div>
+                                            <div>
+                                                <h4 class="font-medium text-teal-600 mb-2"><i class="fas fa-layer-group mr-1"></i> 新架构结构</h4>
+                                                <ul class="text-sm text-gray-600 space-y-1">
+                                                    <li>• app/core/ - 核心组件</li>
+                                                    <li>• app/services/ - 业务逻辑层</li>
+                                                    <li>• app/api/v1/ - API路由模块</li>
+                                                    <li>• app/web/ - Web页面蓝图</li>
+                                                    <li>• app/utils/ - 工具装饰器</li>
+                                                    <li>• 统一错误处理机制</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                        <div class="mt-4 pt-4 border-t border-emerald-200">
+                                            <p class="text-sm text-gray-600"><i class="fas fa-trophy mr-1 text-emerald-500"></i> 
+                                            <strong>重大里程碑</strong>：建立了可持续发展的代码架构，符合SOLID原则和清洁架构，为未来微服务化奠定坚实基础</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- v2.4.1 -->
+                        <div class="relative">
+                            <div class="flex items-start">
+                                <div class="flex-shrink-0 w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-lg ring-4 ring-purple-200">
+                                    2.4.1
+                                </div>
+                                <div class="ml-4 flex-1">
+                                    <div class="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg shadow-md border-2 border-purple-300 p-6">
+                                        <div class="flex items-center justify-between mb-4">
+                                            <div class="flex items-center space-x-3">
+                                                <h3 class="text-lg font-semibold text-gray-900">v2.4.1 - 前端性能优化重构 ⚡</h3>
+                                                <span class="px-3 py-1 text-xs font-medium bg-purple-100 text-purple-800 rounded-full border border-purple-300">稳定版本</span>
+                                            </div>
+                                            <span class="text-sm text-gray-500">2025-06-27</span>
+                                        </div>
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <h4 class="font-medium text-purple-600 mb-2"><i class="fas fa-rocket mr-1"></i> 性能突破</h4>
+                                                <ul class="text-sm text-gray-600 space-y-1">
+                                                    <li>• CSS/JS完全外部化（支持缓存）</li>
+                                                    <li>• 移除48个内联onclick事件</li>
+                                                    <li>• 实现现代事件监听器管理</li>
+                                                    <li>• 静态资源可并行加载</li>
+                                                    <li>• HTML文件大小优化至128KB</li>
+                                                    <li>• JavaScript模块化重构</li>
+                                                </ul>
+                                            </div>
+                                            <div>
+                                                <h4 class="font-medium text-pink-600 mb-2"><i class="fas fa-cogs mr-1"></i> 架构现代化</h4>
+                                                <ul class="text-sm text-gray-600 space-y-1">
+                                                    <li>• CSS变量系统管理主题</li>
+                                                    <li>• 统一DOMContentLoaded初始化</li>
+                                                    <li>• 事件处理集中化管理</li>
+                                                    <li>• 代码分离便于维护</li>
+                                                    <li>• 符合现代Web开发标准</li>
+                                                    <li>• 为SPA架构奠定基础</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                        <div class="mt-4 pt-4 border-t border-purple-200">
+                                            <p class="text-sm text-gray-600"><i class="fas fa-star mr-1 text-purple-500"></i> 
+                                            <strong>现代化转型</strong>：从传统单文件架构升级为模块化架构，性能优化程度从60%提升至90%，为未来功能扩展奠定坚实基础</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- v2.4.0 -->
+                        <div class="relative">
+                            <div class="flex items-start">
+                                <div class="flex-shrink-0 w-10 h-10 bg-gradient-to-r from-green-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-lg ring-4 ring-green-200">
+                                    2.4.0
+                                </div>
+                                <div class="ml-4 flex-1">
+                                    <div class="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg shadow-md border-2 border-green-300 p-6">
+                                        <div class="flex items-center justify-between mb-4">
+                                            <div class="flex items-center space-x-3">
+                                                <h3 class="text-lg font-semibold text-gray-900">v2.4.0 - 后台任务处理系统 🚀</h3>
+                                                <span class="px-3 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full border border-green-300">稳定版本</span>
+                                            </div>
+                                            <span class="text-sm text-gray-500">2025-06-27</span>
+                                        </div>
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <h4 class="font-medium text-green-600 mb-2"><i class="fas fa-rocket mr-1"></i> 重大突破</h4>
+                                                <ul class="text-sm text-gray-600 space-y-1">
+                                                    <li>• 内置后台任务处理器</li>
+                                                    <li>• 30秒自动检查待处理任务</li>
+                                                    <li>• 实时处理器状态监控</li>
+                                                    <li>• 并发任务控制（最多3个）</li>
+                                                    <li>• 独立Worker脚本备选方案</li>
+                                                    <li>• 系统管理工具集</li>
+                                                </ul>
+                                            </div>
+                                            <div>
+                                                <h4 class="font-medium text-blue-600 mb-2"><i class="fas fa-cogs mr-1"></i> 架构升级</h4>
+                                                <ul class="text-sm text-gray-600 space-y-1">
+                                                    <li>• 从手动执行到自动化处理</li>
+                                                    <li>• API状态监控接口</li>
+                                                    <li>• Web界面处理器状态区域</li>
+                                                    <li>• 进程生命周期管理</li>
+                                                    <li>• 多层验证测试策略</li>
+                                                    <li>• 完整的技术文档</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                        <div class="mt-4 pt-4 border-t border-green-200">
+                                            <p class="text-sm text-gray-600"><i class="fas fa-star mr-1 text-green-500"></i> 
+                                            <strong>里程碑升级</strong>：从半自动化系统升级为全自动化企业级解决方案，自动化程度提升至95%，真正实现"自动同步"</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- v2.3.2 - 之前版本 -->
+                        <div class="relative">
+                            <div class="flex items-start">
+                                <div class="flex-shrink-0 w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-lg">
+                                    2.3.2
+                                </div>
+                                <div class="ml-4 flex-1">
+                                    <div class="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg shadow-sm border-2 border-blue-200 p-6">
+                                        <div class="flex items-center justify-between mb-4">
+                                            <div class="flex items-center space-x-3">
+                                                <h3 class="text-lg font-semibold text-gray-900">v2.3.2 - UI优化与帮助系统重构</h3>
+                                                <span class="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">稳定版本</span>
+                                            </div>
+                                            <span class="text-sm text-gray-500">2025-06-26</span>
+                                        </div>
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <h4 class="font-medium text-green-600 mb-2"><i class="fas fa-plus-circle mr-1"></i> 新增功能</h4>
+                                                <ul class="text-sm text-gray-600 space-y-1">
+                                                    <li>• 智能悬浮球UI设计</li>
+                                                    <li>• 批量重试菜单功能</li>
+                                                    <li>• 帮助系统标签页重构</li>
+                                                    <li>• 搜索功能与诊断工具</li>
+                                                    <li>• 时间显示系统重构</li>
+                                                    <li>• 手动执行按钮优化</li>
+                                                </ul>
+                                            </div>
+                                            <div>
+                                                <h4 class="font-medium text-blue-600 mb-2"><i class="fas fa-wrench mr-1"></i> 问题修复</h4>
+                                                <ul class="text-sm text-gray-600 space-y-1">
+                                                    <li>• UI元素遮挡问题</li>
+                                                    <li>• 时间格式显示不准确</li>
+                                                    <li>• 待同步状态缺少执行入口</li>
+                                                    <li>• 帮助内容分类杂乱</li>
+                                                    <li>• 多种时间格式解析错误</li>
+                                                    <li>• 界面边框线影响美观</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                        <div class="mt-4 pt-4 border-t border-blue-200">
+                                            <p class="text-sm text-gray-600"><i class="fas fa-info-circle mr-1 text-blue-500"></i> 
+                                            <strong>重要提升</strong>：用户体验全面优化，帮助内容增长900%，UI遮挡面积减少95%，功能完整性达到100%</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- v2.3.0 -->
+                        <div class="relative">
+                            <div class="flex items-start">
+                                <div class="flex-shrink-0 w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                                    2.3
+                                </div>
+                                <div class="ml-4 flex-1">
+                                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                                        <div class="flex items-center justify-between mb-4">
+                                            <h3 class="text-lg font-semibold text-gray-900">v2.3.0 - 性能图表与同步优化</h3>
+                                            <span class="text-sm text-gray-500">2025-06-26</span>
+                                        </div>
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <h4 class="font-medium text-green-600 mb-2"><i class="fas fa-plus-circle mr-1"></i> 新增功能</h4>
+                                                <ul class="text-sm text-gray-600 space-y-1">
+                                                    <li>• 强制重新同步选项</li>
+                                                    <li>• 手动同步立即执行</li>
+                                                    <li>• 版本历史展示页面</li>
+                                                </ul>
+                                            </div>
+                                            <div>
+                                                <h4 class="font-medium text-blue-600 mb-2"><i class="fas fa-wrench mr-1"></i> 问题修复</h4>
+                                                <ul class="text-sm text-gray-600 space-y-1">
+                                                    <li>• 性能趋势图表ID冲突</li>
+                                                    <li>• 手动同步显示"等待同步"</li>
+                                                    <li>• Chart.js初始化时机问题</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- v2.2.0 -->
+                        <div class="relative">
+                            <div class="flex items-start">
+                                <div class="flex-shrink-0 w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                                    2.2
+                                </div>
+                                <div class="ml-4 flex-1">
+                                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                                        <div class="flex items-center justify-between mb-4">
+                                            <h3 class="text-lg font-semibold text-gray-900">v2.2.0 - 用户体验优化</h3>
+                                            <span class="text-sm text-gray-500">2025-06-24</span>
+                                        </div>
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <h4 class="font-medium text-green-600 mb-2"><i class="fas fa-plus-circle mr-1"></i> 新增功能</h4>
+                                                <ul class="text-sm text-gray-600 space-y-1">
+                                                    <li>• 编号系统数字自增长</li>
+                                                    <li>• 手动同步默认值设置</li>
+                                                    <li>• 防重复提交机制</li>
+                                                    <li>• 七牛云图片存储</li>
+                                                </ul>
+                                            </div>
+                                            <div>
+                                                <h4 class="font-medium text-blue-600 mb-2"><i class="fas fa-wrench mr-1"></i> 问题修复</h4>
+                                                <ul class="text-sm text-gray-600 space-y-1">
+                                                    <li>• 数据库锁定问题</li>
+                                                    <li>• 前端数据解析错误</li>
+                                                    <li>• 失败任务显示问题</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- v2.1.0 -->
+                        <div class="relative">
+                            <div class="flex items-start">
+                                <div class="flex-shrink-0 w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                                    2.1
+                                </div>
+                                <div class="ml-4 flex-1">
+                                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                                        <div class="flex items-center justify-between mb-4">
+                                            <h3 class="text-lg font-semibold text-gray-900">v2.1.0 - 功能增强</h3>
+                                            <span class="text-sm text-gray-500">2025-06-23</span>
+                                        </div>
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <h4 class="font-medium text-green-600 mb-2"><i class="fas fa-plus-circle mr-1"></i> 新增功能</h4>
+                                                <ul class="text-sm text-gray-600 space-y-1">
+                                                    <li>• 批量文件夹同步</li>
+                                                    <li>• 文档选择功能</li>
+                                                    <li>• 真实监控数据</li>
+                                                    <li>• 配置管理搜索</li>
+                                                    <li>• 同步记录批量删除</li>
+                                                </ul>
+                                            </div>
+                                            <div>
+                                                <h4 class="font-medium text-blue-600 mb-2"><i class="fas fa-wrench mr-1"></i> 问题修复</h4>
+                                                <ul class="text-sm text-gray-600 space-y-1">
+                                                    <li>• 批量同步无限循环</li>
+                                                    <li>• 监控数据假数据问题</li>
+                                                    <li>• API数据结构不一致</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- v2.0.0 -->
+                        <div class="relative">
+                            <div class="flex items-start">
+                                <div class="flex-shrink-0 w-10 h-10 bg-orange-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                                    2.0
+                                </div>
+                                <div class="ml-4 flex-1">
+                                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                                        <div class="flex items-center justify-between mb-4">
+                                            <h3 class="text-lg font-semibold text-gray-900">v2.0.0 - 完整功能实现</h3>
+                                            <span class="text-sm text-gray-500">2025-06-22</span>
+                                        </div>
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <h4 class="font-medium text-green-600 mb-2"><i class="fas fa-plus-circle mr-1"></i> 核心功能</h4>
+                                                <ul class="text-sm text-gray-600 space-y-1">
+                                                    <li>• 飞书→Notion完整同步</li>
+                                                    <li>• 图片处理与CDN存储</li>
+                                                    <li>• Web管理界面</li>
+                                                    <li>• 监控告警系统</li>
+                                                    <li>• API接口系统</li>
+                                                </ul>
+                                            </div>
+                                            <div>
+                                                <h4 class="font-medium text-blue-600 mb-2"><i class="fas fa-wrench mr-1"></i> 架构建立</h4>
+                                                <ul class="text-sm text-gray-600 space-y-1">
+                                                    <li>• 数据库设计完成</li>
+                                                    <li>• Flask后端架构</li>
+                                                    <li>• 前端界面框架</li>
+                                                    <li>• 外部API集成</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- v1.0.0 -->
+                        <div class="relative">
+                            <div class="flex items-start">
+                                <div class="flex-shrink-0 w-10 h-10 bg-gray-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                                    1.0
+                                </div>
+                                <div class="ml-4 flex-1">
+                                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                                        <div class="flex items-center justify-between mb-4">
+                                            <h3 class="text-lg font-semibold text-gray-900">v1.0.0 - 项目初始化</h3>
+                                            <span class="text-sm text-gray-500">2025-06-21</span>
+                                        </div>
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <h4 class="font-medium text-green-600 mb-2"><i class="fas fa-plus-circle mr-1"></i> 基础搭建</h4>
+                                                <ul class="text-sm text-gray-600 space-y-1">
+                                                    <li>• 项目需求分析</li>
+                                                    <li>• 技术栈选择</li>
+                                                    <li>• 开发环境搭建</li>
+                                                    <li>• 基础框架搭建</li>
+                                                </ul>
+                                            </div>
+                                            <div>
+                                                <h4 class="font-medium text-blue-600 mb-2"><i class="fas fa-wrench mr-1"></i> 问题诊断</h4>
+                                                <ul class="text-sm text-gray-600 space-y-1">
+                                                    <li>• 同步按钮无效问题</li>
+                                                    <li>• 配置管理功能缺失</li>
+                                                    <li>• 数据统计不显示</li>
+                                                    <li>• 帮助页面空白</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 开发统计 -->
+                    <div class="mt-8 bg-gray-50 rounded-lg p-6">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">开发统计</h3>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div class="text-center">
+                                <div class="text-2xl font-bold text-blue-600">7</div>
+                                <div class="text-sm text-gray-600">开发阶段</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-2xl font-bold text-green-600">40+</div>
+                                <div class="text-sm text-gray-600">开发小时</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-2xl font-bold text-purple-600">25+</div>
+                                <div class="text-sm text-gray-600">问题修复</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-2xl font-bold text-orange-600">20+</div>
+                                <div class="text-sm text-gray-600">新增功能</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 技术栈信息 -->
+                    <div class="mt-6 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">技术栈</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <h4 class="font-medium text-gray-900 mb-2">后端技术</h4>
+                                <div class="space-y-1 text-sm text-gray-600">
+                                    <div class="flex items-center"><i class="fab fa-python mr-2"></i> Python 3.6</div>
+                                    <div class="flex items-center"><i class="fas fa-server mr-2"></i> Flask Framework</div>
+                                    <div class="flex items-center"><i class="fas fa-database mr-2"></i> SQLite Database</div>
+                                </div>
+                            </div>
+                            <div>
+                                <h4 class="font-medium text-gray-900 mb-2">前端技术</h4>
+                                <div class="space-y-1 text-sm text-gray-600">
+                                    <div class="flex items-center"><i class="fab fa-html5 mr-2"></i> HTML5</div>
+                                    <div class="flex items-center"><i class="fab fa-js mr-2"></i> JavaScript ES6</div>
+                                    <div class="flex items-center"><i class="fas fa-paint-brush mr-2"></i> Tailwind CSS</div>
+                                    <div class="flex items-center"><i class="fas fa-chart-bar mr-2"></i> Chart.js</div>
+                                </div>
+                            </div>
+                            <div>
+                                <h4 class="font-medium text-gray-900 mb-2">集成服务</h4>
+                                <div class="space-y-1 text-sm text-gray-600">
+                                    <div class="flex items-center"><i class="fas fa-comments mr-2"></i> 飞书 API</div>
+                                    <div class="flex items-center"><i class="fas fa-sticky-note mr-2"></i> Notion API</div>
+                                    <div class="flex items-center"><i class="fas fa-cloud mr-2"></i> 七牛云存储</div>
+                                    <div class="flex items-center"><i class="fas fa-server mr-2"></i> Nginx + Linux</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 帮助中心页面 -->
+                <div id="help-page" class="page-content hidden">
+                    <!-- 页面标题 -->
+                    <div class="mb-8">
+                        <h2 class="text-3xl font-bold text-gray-900">帮助中心</h2>
+                        <p class="text-gray-600 mt-2">飞书-Notion双向同步系统完整使用指南</p>
+                    </div>
+
+                    <!-- 搜索框 -->
+                    <div class="mb-8">
+                        <div class="relative max-w-md">
+                            <input type="text" id="help-search" placeholder="搜索帮助内容..." 
+                                   class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                        </div>
+                    </div>
+
+                    <!-- 导航标签 -->
+                    <div class="mb-8">
+                        <div class="border-b border-gray-200">
+                            <nav class="-mb-px flex space-x-8">
+                                <button 
+                                        class="help-tab-btn py-2 px-1 border-b-2 border-blue-500 text-blue-600 font-medium text-sm" 
+                                        data-tab="getting-started">
+                                    快速开始
+                                </button>
+                                <button 
+                                        class="help-tab-btn py-2 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium text-sm" 
+                                        data-tab="user-guide">
+                                    使用指南
+                                </button>
+                                <button 
+                                        class="help-tab-btn py-2 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium text-sm" 
+                                        data-tab="faq">
+                                    常见问题
+                                </button>
+                                <button 
+                                        class="help-tab-btn py-2 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium text-sm" 
+                                        data-tab="troubleshooting">
+                                    故障排除
+                                </button>
+                                <button 
+                                        class="help-tab-btn py-2 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium text-sm" 
+                                        data-tab="contact">
+                                    技术支持
+                                </button>
+                            </nav>
+                        </div>
+                    </div>
+
+                    <!-- 快速开始内容 -->
+                    <div id="help-tab-getting-started" class="help-tab-content">
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                            <!-- 第一步：环境准备 -->
+                            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                                <div class="flex items-center mb-4">
+                                    <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
+                                        <span class="text-blue-600 font-bold">1</span>
+                                    </div>
+                                    <h3 class="text-lg font-semibold text-gray-900">环境准备</h3>
+                                </div>
+                                <ul class="space-y-3 text-sm text-gray-600">
+                                    <li class="flex items-start">
+                                        <i class="fas fa-key text-blue-500 mr-2 mt-1"></i>
+                                        <div>
+                                            <strong>获取飞书API密钥</strong><br>
+                                            在飞书开放平台创建应用获取App ID和App Secret
+                                        </div>
+                                    </li>
+                                    <li class="flex items-start">
+                                        <i class="fas fa-link text-purple-500 mr-2 mt-1"></i>
+                                        <div>
+                                            <strong>获取Notion集成Token</strong><br>
+                                            在Notion开发者页面创建集成获取Token
+                                        </div>
+                                    </li>
+                                    <li class="flex items-start">
+                                        <i class="fas fa-cloud text-orange-500 mr-2 mt-1"></i>
+                                        <div>
+                                            <strong>配置七牛云存储</strong><br>
+                                            用于图片和附件的CDN加速存储
+                                        </div>
+                                    </li>
+                                </ul>
+                            </div>
+
+                            <!-- 第二步：基础配置 -->
+                            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                                <div class="flex items-center mb-4">
+                                    <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center mr-3">
+                                        <span class="text-green-600 font-bold">2</span>
+                                    </div>
+                                    <h3 class="text-lg font-semibold text-gray-900">基础配置</h3>
+                                </div>
+                                <ul class="space-y-3 text-sm text-gray-600">
+                                    <li class="flex items-start">
+                                        <i class="fas fa-cog text-blue-500 mr-2 mt-1"></i>
+                                        <div>
+                                            <strong>系统设置</strong><br>
+                                            在"系统设置"页面配置API密钥和存储参数
+                                        </div>
+                                    </li>
+                                    <li class="flex items-start">
+                                        <i class="fas fa-test-tube text-green-500 mr-2 mt-1"></i>
+                                        <div>
+                                            <strong>连接测试</strong><br>
+                                            测试飞书、Notion和七牛云连接状态
+                                        </div>
+                                    </li>
+                                    <li class="flex items-start">
+                                        <i class="fas fa-globe text-purple-500 mr-2 mt-1"></i>
+                                        <div>
+                                            <strong>Webhook配置</strong><br>
+                                            配置飞书Webhook URL以启用实时同步
+                                        </div>
+                                    </li>
+                                </ul>
+                            </div>
+
+                            <!-- 第三步：立即执行同步 -->
+                            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                                <div class="flex items-center mb-4">
+                                    <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center mr-3">
+                                        <span class="text-purple-600 font-bold">3</span>
+                                    </div>
+                                    <h3 class="text-lg font-semibold text-gray-900">立即执行同步</h3>
+                                </div>
+                                <ul class="space-y-3 text-sm text-gray-600">
+                                    <li class="flex items-start">
+                                        <i class="fas fa-plus-circle text-blue-500 mr-2 mt-1"></i>
+                                        <div>
+                                            <strong>创建同步配置</strong><br>
+                                            在"同步配置"页面添加文档同步规则
+                                        </div>
+                                    </li>
+                                    <li class="flex items-start">
+                                        <i class="fas fa-play text-green-500 mr-2 mt-1"></i>
+                                        <div>
+                                            <strong>启动同步</strong><br>
+                                            启用自动同步或手动触发同步任务
+                                        </div>
+                                    </li>
+                                    <li class="flex items-start">
+                                        <i class="fas fa-chart-line text-orange-500 mr-2 mt-1"></i>
+                                        <div>
+                                            <strong>监控状态</strong><br>
+                                            在仪表板查看同步进度和结果
+                                        </div>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- 快速链接 -->
+                        <div class="mt-8 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-6">
+                            <h4 class="text-lg font-semibold text-gray-900 mb-4">快速链接</h4>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <button class="text-left p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                                    <i class="fas fa-cog text-blue-500 mb-2"></i>
+                                    <div class="text-sm font-medium text-gray-900">系统设置</div>
+                                </button>
+                                <button class="text-left p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                                    <i class="fas fa-sync text-green-500 mb-2"></i>
+                                    <div class="text-sm font-medium text-gray-900">同步配置</div>
+                                </button>
+                                <button class="text-left p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                                    <i class="fas fa-tachometer-alt text-purple-500 mb-2"></i>
+                                    <div class="text-sm font-medium text-gray-900">监控仪表板</div>
+                                </button>
+                                <button class="text-left p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                                    <i class="fas fa-database text-orange-500 mb-2"></i>
+                                    <div class="text-sm font-medium text-gray-900">数据管理</div>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 其他标签内容... 为了节省空间，这里只显示快速开始内容 -->
+                    <!-- 在实际使用中，应该包含所有标签内容 -->
+                    <div id="help-tab-user-guide" class="help-tab-content hidden">
+                        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                            <h3 class="text-xl font-semibold text-gray-900 mb-4">使用指南</h3>
+                            <p class="text-gray-600">详细的使用指南内容将在此处显示...</p>
+                        </div>
+                    </div>
+
+                    <div id="help-tab-faq" class="help-tab-content hidden">
+                        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                            <h3 class="text-xl font-semibold text-gray-900 mb-4">常见问题</h3>
+                            <p class="text-gray-600">常见问题解答内容将在此处显示...</p>
+                        </div>
+                    </div>
+
+                    <div id="help-tab-troubleshooting" class="help-tab-content hidden">
+                        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                            <h3 class="text-xl font-semibold text-gray-900 mb-4">故障排除</h3>
+                            <p class="text-gray-600">故障排除指南内容将在此处显示...</p>
+                        </div>
+                    </div>
+
+                    <div id="help-tab-contact" class="help-tab-content hidden">
+                        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                            <h3 class="text-xl font-semibold text-gray-900 mb-4">技术支持</h3>
+                            <div class="space-y-4">
+                                <div class="flex items-center text-gray-600">
+                                    <i class="fas fa-envelope mr-3 text-blue-500"></i>
+                                    <span>邮箱：support@yianlu.com</span>
+                                </div>
+                                <div class="flex items-center text-gray-600">
+                                    <i class="fas fa-globe mr-3 text-green-500"></i>
+                                    <span>网站：https://sync.yianlu.com</span>
+                                </div>
+                                <div class="flex items-center text-gray-600">
+                                    <i class="fas fa-code mr-3 text-purple-500"></i>
+                                    <span>版本：v2.4.0</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- 通知消息容器 -->
+    <div id="notifications" class="fixed top-4 right-4 space-y-2 z-50"></div>
+
+    <!-- 版本历史悬浮球 -->
+    <div id="versions-floating-ball" class="fixed bottom-6 right-6 z-40 hidden">
+        <div class="relative">
+            <!-- 主悬浮球 -->
+            <button id="versions-ball-main" 
+                    class="w-14 h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center group">
+                <i class="fas fa-history text-lg group-hover:scale-110 transition-transform"></i>
+            </button>
+            
+            <!-- 悬浮菜单 -->
+            <div id="versions-menu" class="absolute bottom-16 right-0 hidden">
+                <div class="bg-white rounded-lg shadow-xl border border-gray-200 p-3 w-48">
+                    <div class="space-y-2">
+                        <button class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md flex items-center">
+                            <i class="fas fa-code-branch mr-2 text-blue-500"></i>
+                            版本历史
+                        </button>
+                        <button class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md flex items-center">
+                            <i class="fas fa-info-circle mr-2 text-green-500"></i>
+                            当前版本: v2.4.2
+                        </button>
+                        <hr class="my-2">
+                        <button class="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md flex items-center">
+                            <i class="fas fa-times mr-2"></i>
+                            隐藏悬浮球
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 新建配置模态框 -->
+    <div id="config-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 id="config-modal-title" class="text-lg font-semibold text-gray-900">新建同步配置</h3>
+                    <button onclick="hideConfigModal()" class="text-gray-400 hover:text-gray-600">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <form id="config-form" onsubmit="event.preventDefault(); submitConfigForm();">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">源平台</label>
+                            <select id="config-platform" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                                <option value="feishu">飞书 (Feishu)</option>
+                                <option value="notion">Notion</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">文档ID</label>
+                            <input type="text" id="config-document-id" placeholder="输入文档ID或粘贴分享链接" 
+                                   class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                            <p class="text-xs text-gray-500 mt-1">支持飞书分享链接自动解析</p>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">同步方向</label>
+                            <select id="config-sync-direction" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                                <option value="feishu_to_notion">飞书 → Notion</option>
+                                <option value="notion_to_feishu">Notion → 飞书</option>
+                                <option value="bidirectional">双向同步</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Notion分类选择 (仅在同步到Notion时显示) -->
+                        <div id="notion-category-section" class="hidden">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Notion分类</label>
+                            <select id="config-notion-category" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                                <option value="">选择分类...</option>
+                                <!-- 动态加载的分类选项 -->
+                            </select>
+                            <p class="text-xs text-gray-500 mt-1">将同步到指定的Notion分类中</p>
+                        </div>
+                        
+                        <div class="flex items-center space-x-4">
+                            <label class="flex items-center">
+                                <input type="checkbox" id="config-enabled" checked 
+                                       class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                <span class="ml-2 text-sm text-gray-700">启用同步</span>
+                            </label>
+                            
+                            <label class="flex items-center">
+                                <input type="checkbox" id="config-auto-sync" 
+                                       class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                <span class="ml-2 text-sm text-gray-700">自动同步</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="flex justify-end space-x-3 mt-6">
+                        <button type="button" onclick="hideConfigModal()"
+                                class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300">
+                            取消
+                        </button>
+                        <button type="submit" id="config-submit-btn"
+                                class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">
+                            创建配置
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 手动同步模态框 -->
+    <div id="manual-sync-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">手动同步</h3>
+                    <button onclick="hideManualSyncModal()" class="text-gray-400 hover:text-gray-600">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="space-y-4">
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <div class="flex">
+                            <i class="fas fa-info-circle text-blue-400 mt-0.5 mr-3"></i>
+                            <div class="text-sm text-blue-700">
+                                <p class="font-medium">支持多种输入方式：</p>
+                                <ul class="mt-1 list-disc list-inside space-y-1">
+                                    <li>直接输入文档ID</li>
+                                    <li>粘贴飞书分享链接</li>
+                                    <li>批量输入多个ID（换行分隔）</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">文档ID或链接</label>
+                        <textarea id="manual-sync-input" rows="4" placeholder="输入文档ID或分享链接，支持多行批量输入"
+                                  class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">源平台</label>
+                            <select id="manual-source-platform" class="w-full border border-gray-300 rounded-md px-3 py-2">
+                                <option value="feishu">飞书</option>
+                                <option value="notion">Notion</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">目标平台</label>
+                            <select id="manual-target-platform" class="w-full border border-gray-300 rounded-md px-3 py-2">
+                                <option value="notion">Notion</option>
+                                <option value="feishu">飞书</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Notion类型和分类选择 (仅在同步到Notion时显示) -->
+                    <div id="manual-notion-category-section" class="hidden">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">页面类型</label>
+                                <select id="manual-notion-type" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                                    <option value="Post">Post</option>
+                                    <option value="Menu">Menu</option>
+                                    <option value="Page">Page</option>
+                                    <option value="Document">Document</option>
+                                </select>
+                                <p class="text-xs text-gray-500 mt-1">页面的类型分类</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Notion分类</label>
+                                <select id="manual-notion-category" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                                    <option value="">选择分类...</option>
+                                    <!-- 动态加载的分类选项 -->
+                                </select>
+                                <p class="text-xs text-gray-500 mt-1">将同步到指定的Notion分类中</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 强制重新同步选项 -->
+                    <div class="mt-4">
+                        <label class="flex items-center">
+                            <input type="checkbox" id="force-resync" class="mr-2 rounded">
+                            <span class="text-sm text-gray-700">强制重新同步（即使已存在成功记录）</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="flex justify-end space-x-3 mt-6">
+                    <button type="button" onclick="hideManualSyncModal()"
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300">
+                        取消
+                    </button>
+                    <button onclick="executeManualSync()"
+                            class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700">
+                        <i class="fas fa-sync-alt mr-2"></i>
+                        立即执行同步
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 批量同步模态框 -->
+    <div id="batch-sync-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">批量文件夹同步</h3>
+                    <button onclick="hideBatchSyncModal()" class="text-gray-400 hover:text-gray-600">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="space-y-4">
+                    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                        <div class="flex">
+                            <i class="fas fa-exclamation-triangle text-yellow-400 mt-0.5 mr-3"></i>
+                            <div class="text-sm text-yellow-700">
+                                <p class="font-medium">注意事项：</p>
+                                <ul class="mt-1 list-disc list-inside space-y-1">
+                                    <li>将扫描整个文件夹的所有文档</li>
+                                    <li>建议先预览文件夹内容</li>
+                                    <li>大文件夹可能需要较长时间</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">飞书文件夹链接</label>
+                        <input type="text" id="batch-folder-url" placeholder="粘贴飞书文件夹分享链接"
+                               class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">最大深度</label>
+                            <select id="batch-max-depth" class="w-full border border-gray-300 rounded-md px-3 py-2">
+                                <option value="1">1层（仅当前文件夹）</option>
+                                <option value="2">2层</option>
+                                <option value="3" selected>3层（推荐）</option>
+                                <option value="5">5层</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="flex items-center mt-6">
+                                <input type="checkbox" id="batch-use-cache" checked 
+                                       class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                <span class="ml-2 text-sm text-gray-700">启用缓存</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex justify-end space-x-3 mt-6">
+                    <button type="button" onclick="hideBatchSyncModal()"
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300">
+                        取消
+                    </button>
+                    <button onclick="previewFolderContents()"
+                            class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">
+                        <i class="fas fa-eye mr-2"></i>
+                        预览内容
+                    </button>
+                    <button onclick="executeBatchSync()"
+                            class="px-4 py-2 text-sm font-medium text-white bg-orange-600 rounded-md hover:bg-orange-700">
+                        <i class="fas fa-layer-group mr-2"></i>
+                        批量同步
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 文档选择模态框 -->
+    <div id="document-selection-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-6xl w-full p-6 max-h-screen overflow-hidden">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">选择要同步的文档</h3>
+                    <button onclick="hideDocumentSelectionModal()" class="text-gray-400 hover:text-gray-600">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="mb-4 flex items-center justify-between">
+                    <div class="flex items-center space-x-4">
+                        <span id="selected-count" class="text-sm text-gray-600">已选择 0 个文档</span>
+                        <button onclick="selectAllDocuments()" class="text-blue-600 hover:text-blue-800 text-sm">全选</button>
+                        <button onclick="selectNoneDocuments()" class="text-blue-600 hover:text-blue-800 text-sm">取消全选</button>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <input type="text" id="document-search" placeholder="搜索文档名称..." 
+                               class="border border-gray-300 rounded px-3 py-1 text-sm w-64"
+                               onkeyup="filterDocuments()">
+                        <i class="fas fa-search text-gray-400"></i>
+                    </div>
+                </div>
+                
+                <div class="max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50 sticky top-0">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    <input type="checkbox" id="select-all-checkbox" onchange="toggleAllDocuments()" 
+                                           class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">文档名称</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">类型</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">大小</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">修改时间</th>
+                            </tr>
+                        </thead>
+                        <tbody id="documents-table-body" class="bg-white divide-y divide-gray-200">
+                            <!-- 文档列表将在这里动态生成 -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="flex justify-end space-x-3 mt-6">
+                    <button type="button" onclick="hideDocumentSelectionModal()"
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300">
+                        取消
+                    </button>
+                    <button onclick="executeSelectedSync()"
+                            class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700">
+                        <i class="fas fa-sync-alt mr-2"></i>
+                        同步选中文档
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

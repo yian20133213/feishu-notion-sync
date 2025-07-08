@@ -1,0 +1,250 @@
+/* 自定义CSS变量 */
+:root {
+    --primary-blue: #1E40AF;
+    --success-green: #10B981;
+    --warning-orange: #F59E0B;
+    --error-red: #EF4444;
+    --neutral-gray: #6B7280;
+    --bg-gray: #F9FAFB;
+}
+
+/* 字体配置 */
+body {
+    font-family: 'Noto Sans SC', 'Inter', sans-serif;
+}
+
+/* 侧边栏动画 */
+.sidebar-transition {
+    transition: width 0.3s ease-in-out;
+}
+
+/* 状态指示器 */
+.status-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 8px;
+}
+
+.status-running { background-color: var(--success-green); }
+.status-stopped { background-color: var(--neutral-gray); }
+.status-error { background-color: var(--error-red); }
+.status-warning { background-color: var(--warning-orange); }
+
+/* 进度条动画 */
+.progress-bar {
+    transition: width 0.5s ease-in-out;
+}
+
+/* 主容器布局 */
+.flex.h-screen {
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+}
+
+/* 确保布局紧凑 */
+body {
+    margin: 0;
+    padding: 0;
+}
+
+/* 侧边栏 - 使用flex布局而不是fixed */
+#sidebar {
+    width: 250px;
+    height: 100vh;
+    overflow-y: auto;
+    flex-shrink: 0;
+    background-color: white;
+    border-right: 1px solid #e5e7eb;
+}
+
+/* 主内容区域 - 使用flex-1占据剩余空间 */
+.main-content {
+    flex: 1;
+    height: 100vh;
+    overflow-y: auto;
+    background-color: #f9fafb;
+}
+
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+    .flex.h-screen {
+        flex-direction: column;
+    }
+    
+    #sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 250px;
+        height: 100vh;
+        z-index: 30;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease-in-out;
+    }
+    
+    #sidebar.open {
+        transform: translateX(0);
+    }
+    
+    /* 移动端主内容区域占满全屏 */
+    .main-content {
+        flex: 1;
+        width: 100%;
+        height: 100vh;
+        margin-left: 0;
+    }
+}
+
+/* 确保页面内容在Flexbox布局中正确显示 */
+.page-content {
+    min-height: 100%;
+    width: 100%;
+    max-height: calc(100vh - 80px); /* 减去header高度 */
+    overflow-y: auto;
+}
+
+/* 确保Flex容器正确分配空间 */
+.flex-1 {
+    flex: 1 1 0%;
+    min-width: 0; /* 防止flex项目被内容撑开 */
+}
+
+/* 侧边栏布局优化已整合到上面的规则中 */
+
+/* 响应式布局优化 */
+@media (max-width: 768px) {
+    .mobile-hidden {
+        display: none !important;
+    }
+    
+    .mobile-only {
+        display: block !important;
+    }
+}
+
+@media (min-width: 769px) {
+    .mobile-hidden {
+        display: block !important;
+    }
+    
+    .mobile-only {
+        display: none !important;
+    }
+}
+
+/* 优化右下角固定定位元素 */
+[style*="position: fixed"][style*="bottom"][style*="right"],
+.fixed.bottom-4.right-4,
+.floating-button {
+    z-index: 40 !important; /* 降低层级，避免遮挡模态框 */
+}
+
+/* 版本历史悬浮球样式 */
+#versions-floating-ball {
+    transition: all 0.3s ease-in-out;
+}
+
+#versions-floating-ball:hover {
+    transform: translateY(-2px);
+}
+
+/* 在小屏幕上优化悬浮球 */
+@media (max-width: 768px) {
+    #versions-floating-ball {
+        bottom: 1rem !important;
+        right: 1rem !important;
+    }
+    
+    #versions-floating-ball button {
+        width: 3rem !important;
+        height: 3rem !important;
+    }
+    
+    #versions-menu {
+        width: 200px !important;
+        right: 0 !important;
+        bottom: 4rem !important;
+    }
+    
+    /* 隐藏其他可能的悬浮按钮 */
+    [style*="position: fixed"][style*="bottom"][style*="right"]:not(#versions-floating-ball),
+    .fixed.bottom-4.right-4:not(#versions-floating-ball),
+    .floating-button:not(#versions-floating-ball) {
+        display: none !important;
+    }
+}
+
+/* 卡片悬停效果 */
+.card-hover {
+    transition: all 0.2s ease-in-out;
+}
+
+.card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+}
+
+/* 按钮状态 */
+.btn-primary {
+    background-color: var(--primary-blue);
+    transition: all 0.2s ease-in-out;
+}
+
+.btn-primary:hover {
+    background-color: #1D4ED8;
+    transform: translateY(-1px);
+}
+
+/* 导航激活状态 */
+.nav-active {
+    background-color: var(--primary-blue);
+    color: white;
+}
+
+/* 响应式隐藏类 */
+@media (max-width: 768px) {
+    .mobile-hidden { display: none !important; }
+    .mobile-only { display: block !important; }
+}
+
+@media (min-width: 769px) {
+    .mobile-only { display: none !important; }
+}
+
+/* 表格样式 */
+.table-row:nth-child(even) {
+    background-color: #F8FAFC;
+}
+
+.table-row:hover {
+    background-color: #E2E8F0;
+}
+
+/* 加载动画 */
+.loading-spinner {
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid var(--primary-blue);
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* 通知样式 */
+.notification {
+    animation: slideInRight 0.3s ease-out;
+}
+
+@keyframes slideInRight {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
