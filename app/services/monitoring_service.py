@@ -527,3 +527,78 @@ class MonitoringService(SyncService):
         except Exception as e:
             self.logger.error(f"删除图片失败: {e}")
             raise
+
+    def get_recent_activities(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """获取最近活动记录"""
+        try:
+            from database.connection import db
+            from database.models import SyncRecord
+            from datetime import datetime, timedelta
+            
+            with db.get_session() as session:
+                # 获取最近的同步记录
+                recent_records = session.query(SyncRecord).order_by(
+                    SyncRecord.updated_at.desc()
+                ).limit(limit).all()
+                
+                activities = []
+                for record in recent_records:
+                    # 根据同步状态确定活动类型和图标
+                    if record.sync_status == 'success':
+                        icon_class = 'fas fa-check'
+                        icon_color = 'bg-green-500'
+                        activity_text = f"{record.source_id or '文档'} 同步完成"
+                    elif record.sync_status == 'failed':
+                        icon_class = 'fas fa-exclamation'
+                        icon_color = 'bg-red-500'
+                        activity_text = f"{record.source_id or '文档'} 同步失败"
+                        if record.error_message:
+                            # 简化错误信息
+                            error_msg = record.error_message[:50] + "..." if len(record.error_message) > 50 else record.error_message
+                            activity_text += f"，{error_msg}"
+                    elif record.sync_status == 'pending':
+                        icon_class = 'fas fa-clock'
+                        icon_color = 'bg-yellow-500'
+                        activity_text = f"{record.source_id or '文档'} 等待同步"
+                    elif record.sync_status == 'processing':
+                        icon_class = 'fas fa-cog'
+                        icon_color = 'bg-blue-500'
+                        activity_text = f"{record.source_id or '文档'} 正在同步"
+                    else:
+                        icon_class = 'fas fa-circle'
+                        icon_color = 'bg-gray-500'
+                        activity_text = f"{record.source_id or '文档'} 状态未知"
+                    
+                    # 计算相对时间
+                    if record.updated_at:
+                        time_diff = datetime.now() - record.updated_at
+                        if time_diff.days > 0:
+                            time_ago = f"{time_diff.days}天前"
+                        elif time_diff.seconds > 3600:
+                            time_ago = f"{time_diff.seconds // 3600}小时前"
+                        elif time_diff.seconds > 60:
+                            time_ago = f"{time_diff.seconds // 60}分钟前"
+                        else:
+                            time_ago = "刚刚"
+                    else:
+                        time_ago = "未知"
+                    
+                    activities.append({
+                        'id': record.id,
+                        'icon_class': icon_class,
+                        'icon_color': icon_color,
+                        'activity_text': activity_text,
+                        'time_ago': time_ago,
+                        'record_number': record.record_number,
+                        'source_platform': record.source_platform,
+                        'target_platform': record.target_platform,
+                        'sync_status': record.sync_status,
+                        'created_at': str(record.created_at) if record.created_at else None,
+                        'updated_at': str(record.updated_at) if record.updated_at else None
+                    })
+                
+                return activities
+                
+        except Exception as e:
+            self.logger.error(f"获取最近活动失败: {e}")
+            raise

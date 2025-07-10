@@ -97,6 +97,10 @@
             } else if (pageId === 'data') {
                 // 加载数据管理页面的默认数据
                 refreshDataView();
+                // 确保分页控制初始化
+                setTimeout(() => {
+                    initDataPagePagination();
+                }, 100);
             } else if (pageId === 'settings') {
                 loadSystemSettings();
             } else if (pageId === 'help') {
@@ -316,6 +320,9 @@
                         updateDashboardStats(data.data);
                         setCachedData('dashboard', data.data);
                         console.log('仪表板数据加载完成');
+                        
+                        // 同时加载最近活动
+                        loadRecentActivities();
                     } else {
                         console.warn('仪表板数据加载失败:', data.message);
                     }
@@ -520,8 +527,9 @@
                     // ISO格式: 2024-06-26T12:30:45.123456 或 2024-06-26T12:30:45Z
                     date = new Date(dateString);
                 } else if (dateString.includes('-')) {
-                    // 其他格式: 2024-06-26 12:30:45
-                    date = new Date(dateString.replace(' ', 'T'));
+                    // 其他格式: 2024-06-26 12:30:45 (已经是北京时间)
+                    // 直接当作本地时间处理，不需要时区转换
+                    date = new Date(dateString);
                 } else {
                     // 时间戳
                     date = new Date(parseInt(dateString));
@@ -573,7 +581,8 @@
                 if (dateString.includes('T')) {
                     date = new Date(dateString);
                 } else if (dateString.includes('-')) {
-                    date = new Date(dateString.replace(' ', 'T'));
+                    // 直接当作本地时间处理，因为后端已经返回北京时间
+                    date = new Date(dateString);
                 } else {
                     date = new Date(parseInt(dateString));
                 }
@@ -1459,23 +1468,64 @@
         function executeBatchSync() {
             const folderUrl = document.getElementById('batch-folder-url').value.trim();
             const maxDepth = parseInt(document.getElementById('batch-max-depth').value);
+            const useCache = document.getElementById('batch-use-cache').checked;
             
             if (!folderUrl) {
                 showNotification('请输入文件夹链接', 'error');
                 return;
             }
             
-            showNotification('正在执行批量同步...', 'info');
+            showNotification('正在扫描文件夹并创建同步任务...', 'info');
             
-            fetch('/api/v1/sync/batch', {
+            // 先扫描文件夹获取文档列表
+            fetch('/api/v1/batch/folder/scan', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    document_ids: [folderUrl], // 简化处理，将文件夹URL作为文档ID
-                    force_sync: true
+                    folder_path: folderUrl,
+                    max_depth: maxDepth,
+                    use_cache: useCache
                 })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('文件夹扫描结果:', data);
+                
+                if (data.success) {
+                    if (data.documents && data.documents.length > 0) {
+                        // 提取文档ID列表
+                        const documentIds = data.documents.map(doc => doc.token);
+                        console.log('提取的文档ID:', documentIds);
+                        
+                        // 创建批量同步任务
+                        return fetch('/api/v1/sync/batch', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                document_ids: documentIds,
+                                force_sync: true
+                            })
+                        });
+                    } else {
+                        let errorMsg = `文件夹中没有可同步的文档（找到 ${data.total_documents || 0} 个文档）`;
+                        if (data.scan_stats && data.scan_stats.file_types) {
+                            const fileTypes = Object.entries(data.scan_stats.file_types)
+                                .map(([type, count]) => `${type}(${count}个)`)
+                                .join(', ');
+                            errorMsg += `。发现的文件类型: ${fileTypes}`;
+                        }
+                        if (data.scan_summary) {
+                            errorMsg += `。${data.scan_summary}`;
+                        }
+                        throw new Error(errorMsg);
+                    }
+                } else {
+                    throw new Error(data.message || '文件夹扫描失败');
+                }
             })
             .then(response => response.json())
             .then(data => {
@@ -1489,7 +1539,11 @@
             })
             .catch(error => {
                 console.error('Error executing batch sync:', error);
-                showNotification('批量同步失败', 'error');
+                if (error.message) {
+                    showNotification(error.message, 'error');
+                } else {
+                    showNotification('批量同步失败', 'error');
+                }
             });
         }
         
@@ -2076,6 +2130,104 @@
                 console.error('刷新数据出错:', error);
                 showNotification('刷新失败，请重试', 'error');
             }
+        }
+
+        // 最近活动相关函数
+        function loadRecentActivities(limit = 10) {
+            console.log('加载最近活动...');
+            
+            const loadingElement = document.getElementById('recent-activities-loading');
+            const listElement = document.getElementById('recent-activities-list');
+            const emptyElement = document.getElementById('recent-activities-empty');
+            
+            // 显示加载状态
+            if (loadingElement) loadingElement.classList.remove('hidden');
+            if (listElement) listElement.classList.add('hidden');
+            if (emptyElement) emptyElement.classList.add('hidden');
+            
+            return fetch(`/api/v1/recent-activities?limit=${limit}&_=${Date.now()}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        renderRecentActivities(data.data);
+                        console.log('最近活动加载完成');
+                    } else {
+                        console.warn('最近活动加载失败:', data.message);
+                        showRecentActivitiesEmpty();
+                    }
+                })
+                .catch(error => {
+                    console.error('获取最近活动失败:', error);
+                    showRecentActivitiesEmpty();
+                })
+                .finally(() => {
+                    // 隐藏加载状态
+                    if (loadingElement) loadingElement.classList.add('hidden');
+                });
+        }
+
+        function renderRecentActivities(activities) {
+            const listElement = document.getElementById('recent-activities-list');
+            const emptyElement = document.getElementById('recent-activities-empty');
+            
+            if (!listElement) return;
+            
+            if (!activities || activities.length === 0) {
+                showRecentActivitiesEmpty();
+                return;
+            }
+            
+            // 生成活动列表HTML
+            const activitiesHtml = activities.map((activity, index) => {
+                const isLast = index === activities.length - 1;
+                return `
+                    <li>
+                        <div class="relative ${isLast ? '' : 'pb-8'}">
+                            ${isLast ? '' : '<span class="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200"></span>'}
+                            <div class="relative flex space-x-3">
+                                <div>
+                                    <span class="h-8 w-8 rounded-full ${activity.icon_color} flex items-center justify-center ring-8 ring-white">
+                                        <i class="${activity.icon_class} text-white text-sm"></i>
+                                    </span>
+                                </div>
+                                <div class="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4">
+                                    <div>
+                                        <p class="text-sm text-gray-500">
+                                            ${activity.activity_text}
+                                        </p>
+                                        ${activity.record_number ? `<p class="text-xs text-gray-400 mt-1">记录编号: ${activity.record_number}</p>` : ''}
+                                    </div>
+                                    <div class="text-right text-sm whitespace-nowrap text-gray-500">
+                                        ${activity.time_ago}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </li>
+                `;
+            }).join('');
+            
+            listElement.innerHTML = activitiesHtml;
+            listElement.classList.remove('hidden');
+            if (emptyElement) emptyElement.classList.add('hidden');
+        }
+
+        function showRecentActivitiesEmpty() {
+            const listElement = document.getElementById('recent-activities-list');
+            const emptyElement = document.getElementById('recent-activities-empty');
+            
+            if (listElement) listElement.classList.add('hidden');
+            if (emptyElement) emptyElement.classList.remove('hidden');
+        }
+
+        function refreshRecentActivities() {
+            console.log('刷新最近活动');
+            loadRecentActivities();
         }
 
         // 添加缺失的函数定义
@@ -3447,21 +3599,39 @@
             currentPage.textContent = pagination.page || 1;
             totalPages.textContent = pagination.pages || 1;
             
-            // 更新按钮状态
+            // 更新按钮状态（不要覆盖已经绑定的事件）
             if (prevButton) {
                 prevButton.disabled = (pagination.page || 1) <= 1;
-                prevButton.onclick = () => changePage((pagination.page || 1) - 1);
+                // 不要覆盖onclick，保持addEventListener绑定的事件
             }
             
             if (nextButton) {
                 nextButton.disabled = (pagination.page || 1) >= (pagination.pages || 1);
-                nextButton.onclick = () => changePage((pagination.page || 1) + 1);
+                // 不要覆盖onclick，保持addEventListener绑定的事件
             }
             
             // 生成页码按钮
             if (pageNumbers) {
                 generatePageNumbers(pagination.page || 1, pagination.pages || 1);
             }
+        }
+        
+        function changePage(page) {
+            console.log('切换到第', page, '页');
+            const currentPageEl = document.getElementById('current-page');
+            if (currentPageEl) {
+                currentPageEl.textContent = page;
+            }
+            loadMonitoringSyncRecords();
+        }
+        
+        function changePageSize() {
+            console.log('改变页面大小');
+            const currentPageEl = document.getElementById('current-page');
+            if (currentPageEl) {
+                currentPageEl.textContent = '1'; // 重置为第一页
+            }
+            loadMonitoringSyncRecords();
         }
         
         function generatePageNumbers(currentPage, totalPages) {
@@ -3505,28 +3675,21 @@
         function addPageButton(container, pageNum, currentPage) {
             const button = document.createElement('button');
             button.textContent = pageNum;
-            button.className = pageNum === currentPage 
-                ? 'px-3 py-2 bg-blue-500 text-white rounded-md' 
-                : 'px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200';
-            button.onclick = () => changePage(pageNum);
+            button.className = `px-3 py-2 text-sm rounded-md ${
+                pageNum === currentPage 
+                ? 'bg-blue-600 text-white' 
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`;
+            // 使用addEventListener而不是onclick
+            button.addEventListener('click', () => changePage(pageNum));
             container.appendChild(button);
         }
         
         function addEllipsis(container) {
-            const span = document.createElement('span');
-            span.textContent = '...';
-            span.className = 'px-2 py-2 text-gray-500';
-            container.appendChild(span);
-        }
-        
-        function changePage(page) {
-            console.log('切换到页面:', page);
-            const currentPageEl = document.getElementById('current-page');
-            if (currentPageEl) {
-                currentPageEl.textContent = page;
-            }
-            // 重新加载数据
-            loadMonitoringSyncRecords();
+            const ellipsis = document.createElement('span');
+            ellipsis.textContent = '...';
+            ellipsis.className = 'px-3 py-2 text-sm text-gray-500';
+            container.appendChild(ellipsis);
         }
         
         function changePageSize() {
@@ -3638,8 +3801,8 @@
                 const documentTitle = record.document_title || record.title || 
                                     (record.source_id ? `文档 ${record.source_id.substring(0, 8)}...` : '未知文档');
                 
-                // 记录编号显示
-                const recordNumber = record.record_number ? `#${record.record_number}` : `#${record.id || index + 1}`;
+                // 记录编号显示（阿拉伯数字，从1开始）
+                const recordNumber = index + 1;
                 
                 // 文档ID显示（截断显示）
                 const documentId = record.source_id || record.document_id || 'N/A';
@@ -3888,4 +4051,219 @@
         function showVersionInfo() {
             console.log('显示版本信息');
             showNotification('版本信息功能开发中', 'info');
+        }
+
+        // 页面初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('页面初始化完成');
+            
+            // 绑定页面大小选择器事件
+            const pageSizeSelect = document.getElementById('page-size');
+            if (pageSizeSelect) {
+                pageSizeSelect.addEventListener('change', changePageSize);
+                console.log('页面大小选择器事件已绑定');
+            }
+            
+            // 初始化数据管理页面分页控制
+            initDataPagePagination();
+        });
+        
+        function initDataPagePagination() {
+            console.log('初始化数据页面分页控制');
+            
+            // 绑定页面大小选择器事件（使用一次性绑定）
+            const pageSizeSelect = document.getElementById('page-size');
+            if (pageSizeSelect && !pageSizeSelect.hasAttribute('data-listener-bound')) {
+                pageSizeSelect.addEventListener('change', changePageSize);
+                pageSizeSelect.setAttribute('data-listener-bound', 'true');
+                console.log('页面大小选择器事件已绑定');
+            }
+            
+            // 绑定批量重试按钮事件
+            const retryButtons = document.querySelectorAll('#data-retry-buttons button');
+            retryButtons.forEach((btn, index) => {
+                const statuses = ['pending', 'failed', 'all'];
+                const status = statuses[index] || 'all';
+                btn.addEventListener('click', () => batchRetryRecords(status));
+                console.log(`绑定批量重试按钮: ${status}`);
+            });
+            
+            // 绑定批量删除按钮事件
+            const deleteButtons = document.querySelectorAll('#data-delete-buttons button');
+            deleteButtons.forEach((btn, index) => {
+                const statuses = ['failed', 'processing', 'all'];
+                const status = statuses[index] || 'all';
+                btn.addEventListener('click', () => batchDeleteRecords(status));
+                console.log(`绑定批量删除按钮: ${status}`);
+            });
+            
+            // 绑定页面导航按钮事件（使用一次性绑定）
+            const prevPageBtn = document.getElementById('prev-page');
+            const nextPageBtn = document.getElementById('next-page');
+            
+            if (prevPageBtn && !prevPageBtn.hasAttribute('data-listener-bound')) {
+                prevPageBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const currentPageEl = document.getElementById('current-page');
+                    const currentPage = currentPageEl ? parseInt(currentPageEl.textContent) : 1;
+                    if (currentPage > 1 && !prevPageBtn.disabled) {
+                        changePage(currentPage - 1);
+                    }
+                });
+                prevPageBtn.setAttribute('data-listener-bound', 'true');
+                console.log('上一页按钮事件已绑定');
+            }
+            
+            if (nextPageBtn && !nextPageBtn.hasAttribute('data-listener-bound')) {
+                nextPageBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const currentPageEl = document.getElementById('current-page');
+                    const totalPagesEl = document.getElementById('total-pages');
+                    const currentPage = currentPageEl ? parseInt(currentPageEl.textContent) : 1;
+                    const totalPages = totalPagesEl ? parseInt(totalPagesEl.textContent) : 1;
+                    if (currentPage < totalPages && !nextPageBtn.disabled) {
+                        changePage(currentPage + 1);
+                    }
+                });
+                nextPageBtn.setAttribute('data-listener-bound', 'true');
+                console.log('下一页按钮事件已绑定');
+            }
+            
+            console.log('数据页面分页控制初始化完成');
+        }
+        
+        // 批量重试记录函数
+        function batchRetryRecords(status) {
+            console.log(`批量重试记录: ${status}`);
+            
+            let confirmMessage = '';
+            let apiUrl = '';
+            let requestData = {};
+            
+            if (status === 'pending') {
+                confirmMessage = '确定要重试所有待处理任务吗？';
+                // 获取待处理任务的记录ID
+                requestData = { status: 'pending' };
+            } else if (status === 'failed') {
+                confirmMessage = '确定要重试所有失败任务吗？';
+                requestData = { status: 'failed' };
+            } else if (status === 'all') {
+                confirmMessage = '确定要重试所有未完成任务吗？这将包括待处理和失败的任务。';
+                requestData = { status: 'all' };
+            }
+            
+            if (!confirm(confirmMessage)) {
+                return;
+            }
+            
+            // 显示加载状态
+            showNotification('正在执行批量重试操作...', 'info');
+            
+            // 先获取要重试的记录ID
+            fetch('/api/v1/sync/records?status=' + (status === 'all' ? 'failed' : status) + '&limit=100')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.data.items) {
+                        const recordIds = data.data.items.map(item => item.id);
+                        
+                        if (recordIds.length === 0) {
+                            showNotification('没有找到需要重试的记录', 'warning');
+                            return;
+                        }
+                        
+                        // 执行批量重试
+                        return fetch('/api/v1/sync/records/batch', {
+                            method: 'PATCH',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                record_ids: recordIds,
+                                retry_failed_only: status !== 'all'
+                            })
+                        });
+                    } else {
+                        throw new Error('获取记录列表失败');
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showNotification(`批量重试成功：${data.data.updated_count} 条记录已重新提交`, 'success');
+                        // 刷新数据视图
+                        refreshDataView();
+                    } else {
+                        showNotification('批量重试失败：' + (data.message || '未知错误'), 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('批量重试失败:', error);
+                    showNotification('批量重试失败：网络错误', 'error');
+                });
+        }
+        
+        // 批量删除记录函数
+        function batchDeleteRecords(status) {
+            console.log(`批量删除记录: ${status}`);
+            
+            let confirmMessage = '';
+            let dangerLevel = '';
+            
+            if (status === 'failed') {
+                confirmMessage = '确定要删除所有失败记录吗？此操作不可撤销！';
+                dangerLevel = 'warning';
+            } else if (status === 'processing') {
+                confirmMessage = '确定要删除所有进行中记录吗？此操作不可撤销！';
+                dangerLevel = 'warning';
+            } else if (status === 'all') {
+                confirmMessage = '⚠️ 危险操作：确定要删除所有记录吗？\n\n此操作将永久删除所有同步记录，无法恢复！\n\n请输入 "DELETE" 确认操作:';
+                dangerLevel = 'danger';
+            }
+            
+            if (dangerLevel === 'danger') {
+                const userConfirm = prompt(confirmMessage);
+                if (userConfirm !== 'DELETE') {
+                    showNotification('操作已取消', 'info');
+                    return;
+                }
+            } else {
+                if (!confirm(confirmMessage)) {
+                    return;
+                }
+            }
+            
+            // 显示加载状态
+            showNotification('正在执行批量删除操作...', 'info');
+            
+            let requestData = {};
+            
+            if (status === 'all') {
+                // 删除所有记录
+                requestData = { status: 'all' };
+            } else {
+                // 删除特定状态的记录
+                requestData = { status: status };
+            }
+            
+            fetch('/api/v1/sync/records/batch', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification(`批量删除成功：${data.data.deleted_count} 条记录已删除`, 'success');
+                    // 刷新数据视图
+                    refreshDataView();
+                } else {
+                    showNotification('批量删除失败：' + (data.message || '未知错误'), 'error');
+                }
+            })
+            .catch(error => {
+                console.error('批量删除失败:', error);
+                showNotification('批量删除失败：网络错误', 'error');
+            });
         }

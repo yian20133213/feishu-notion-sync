@@ -601,6 +601,10 @@ class NotionClient:
                 
                 # 如果图片已经上传到CDN，创建真正的图片块
                 if cdn_url:
+                    # 确保URL格式正确
+                    if not cdn_url.startswith('http'):
+                        cdn_url = f"https://{cdn_url}"
+                    
                     return {
                         "object": "block",
                         "type": "image",
@@ -655,19 +659,109 @@ class NotionClient:
             return None
     
     def _create_rich_text(self, content: str) -> List[Dict[str, Any]]:
-        """创建Notion富文本对象"""
+        """创建Notion富文本对象，支持markdown格式"""
         if not content:
             return []
         
-        # 简单处理，可以扩展支持更多格式
-        return [
-            {
+        import re
+        
+        # 使用简单的方法逐个处理格式
+        result_parts = []
+        remaining_text = content
+        
+        # 处理加粗文本 **text**
+        bold_pattern = r'\*\*(.*?)\*\*'
+        while True:
+            match = re.search(bold_pattern, remaining_text)
+            if not match:
+                break
+            
+            # 添加匹配前的普通文本
+            before_text = remaining_text[:match.start()]
+            if before_text:
+                result_parts.append({
+                    "type": "text",
+                    "text": {"content": before_text}
+                })
+            
+            # 添加加粗文本
+            bold_text = match.group(1)
+            result_parts.append({
                 "type": "text",
-                "text": {
-                    "content": content
-                }
-            }
-        ]
+                "text": {"content": bold_text},
+                "annotations": {"bold": True}
+            })
+            
+            # 更新剩余文本
+            remaining_text = remaining_text[match.end():]
+        
+        # 处理斜体文本 *text* (但不是 **text** 的一部分)
+        italic_pattern = r'(?<!\*)\*([^*]+?)\*(?!\*)'
+        while True:
+            match = re.search(italic_pattern, remaining_text)
+            if not match:
+                break
+            
+            # 添加匹配前的普通文本
+            before_text = remaining_text[:match.start()]
+            if before_text:
+                result_parts.append({
+                    "type": "text",
+                    "text": {"content": before_text}
+                })
+            
+            # 添加斜体文本
+            italic_text = match.group(1)
+            result_parts.append({
+                "type": "text",
+                "text": {"content": italic_text},
+                "annotations": {"italic": True}
+            })
+            
+            # 更新剩余文本
+            remaining_text = remaining_text[match.end():]
+        
+        # 处理内联代码 `text`
+        code_pattern = r'`([^`]+?)`'
+        while True:
+            match = re.search(code_pattern, remaining_text)
+            if not match:
+                break
+            
+            # 添加匹配前的普通文本
+            before_text = remaining_text[:match.start()]
+            if before_text:
+                result_parts.append({
+                    "type": "text",
+                    "text": {"content": before_text}
+                })
+            
+            # 添加代码文本
+            code_text = match.group(1)
+            result_parts.append({
+                "type": "text",
+                "text": {"content": code_text},
+                "annotations": {"code": True}
+            })
+            
+            # 更新剩余文本
+            remaining_text = remaining_text[match.end():]
+        
+        # 添加剩余的普通文本
+        if remaining_text:
+            result_parts.append({
+                "type": "text",
+                "text": {"content": remaining_text}
+            })
+        
+        # 如果没有找到任何格式，返回原始文本
+        if not result_parts:
+            return [{
+                "type": "text",
+                "text": {"content": content}
+            }]
+        
+        return result_parts
     
     def _map_language(self, feishu_language: str) -> str:
         """映射飞书语言代码到Notion支持的语言"""

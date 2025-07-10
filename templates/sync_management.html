@@ -384,78 +384,31 @@
                     <!-- 最近活动 -->
                     <div class="bg-white rounded-lg shadow-sm border border-gray-200">
                         <div class="p-6 border-b border-gray-200">
-                            <h3 class="text-lg font-semibold text-gray-900">最近活动</h3>
+                            <div class="flex items-center justify-between">
+                                <h3 class="text-lg font-semibold text-gray-900">最近活动</h3>
+                                <button class="text-blue-600 hover:text-blue-800 text-sm font-medium" onclick="refreshRecentActivities()">
+                                    <i class="fas fa-refresh mr-1"></i>
+                                    刷新
+                                </button>
+                            </div>
                         </div>
                         <div class="p-6">
-                            <div class="flow-root">
-                                <ul class="-mb-8">
-                                    <li>
-                                        <div class="relative pb-8">
-                                            <span class="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200"></span>
-                                            <div class="relative flex space-x-3">
-                                                <div>
-                                                    <span class="h-8 w-8 rounded-full bg-green-500 flex items-center justify-center ring-8 ring-white">
-                                                        <i class="fas fa-check text-white text-sm"></i>
-                                                    </span>
-                                                </div>
-                                                <div class="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4">
-                                                    <div>
-                                                        <p class="text-sm text-gray-500">
-                                                            <span class="font-medium text-gray-900">项目管理文档</span> 同步完成，新增 12 条记录
-                                                        </p>
-                                                    </div>
-                                                    <div class="text-right text-sm whitespace-nowrap text-gray-500">
-                                                        5分钟前
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </li>
-                                    <li>
-                                        <div class="relative pb-8">
-                                            <span class="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200"></span>
-                                            <div class="relative flex space-x-3">
-                                                <div>
-                                                    <span class="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center ring-8 ring-white">
-                                                        <i class="fas fa-cog text-white text-sm"></i>
-                                                    </span>
-                                                </div>
-                                                <div class="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4">
-                                                    <div>
-                                                        <p class="text-sm text-gray-500">
-                                                            管理员创建了新的同步配置 <span class="font-medium text-gray-900">产品需求文档</span>
-                                                        </p>
-                                                    </div>
-                                                    <div class="text-right text-sm whitespace-nowrap text-gray-500">
-                                                        1小时前
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </li>
-                                    <li>
-                                        <div class="relative pb-8">
-                                            <span class="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200"></span>
-                                            <div class="relative flex space-x-3">
-                                                <div>
-                                                    <span class="h-8 w-8 rounded-full bg-red-500 flex items-center justify-center ring-8 ring-white">
-                                                        <i class="fas fa-exclamation text-white text-sm"></i>
-                                                    </span>
-                                                </div>
-                                                <div class="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4">
-                                                    <div>
-                                                        <p class="text-sm text-gray-500">
-                                                            <span class="font-medium text-gray-900">会议记录同步</span> 失败，API权限不足
-                                                        </p>
-                                                    </div>
-                                                    <div class="text-right text-sm whitespace-nowrap text-gray-500">
-                                                        2小时前
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </li>
+                            <div id="recent-activities-container" class="flow-root">
+                                <!-- 加载指示器 -->
+                                <div id="recent-activities-loading" class="flex items-center justify-center p-8 text-gray-500">
+                                    <div class="loading-spinner mr-2"></div>
+                                    <span>加载最近活动...</span>
+                                </div>
+                                <!-- 活动列表容器 -->
+                                <ul id="recent-activities-list" class="-mb-8 hidden">
+                                    <!-- 动态生成的活动列表将显示在这里 -->
                                 </ul>
+                                <!-- 空状态 -->
+                                <div id="recent-activities-empty" class="hidden text-center p-8 text-gray-500">
+                                    <i class="fas fa-inbox text-4xl text-gray-300 mb-4"></i>
+                                    <p>暂无活动记录</p>
+                                    <p class="text-sm mt-2">进行一些同步操作后，活动记录将显示在这里</p>
+                                </div>
                             </div>
                         </div>
                     </div>

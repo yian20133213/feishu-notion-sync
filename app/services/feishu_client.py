@@ -236,7 +236,7 @@ class FeishuClient:
         
         except Exception as e:
             error_msg = f"获取飞书文档信息失败 (文档ID: {document_id}): {str(e)}"
-            self.logger.error(error_msg)
+            self.logger.warning(error_msg)  # 改为warning而不是error
             
             # 检查错误类型并提供具体建议
             if "401" in str(e) or "Unauthorized" in str(e):
@@ -259,9 +259,11 @@ class FeishuClient:
                             "fallback_mode": True
                         }
                 except Exception as fallback_e:
-                    self.logger.error(f"Fallback to document API also failed: {fallback_e}")
+                    self.logger.warning(f"Fallback to document API also failed: {fallback_e}")
                 
-                raise Exception(f"{error_msg}\n建议：\n1. 检查文档ID是否正确\n2. 确认文档是否存在且未被删除\n3. 确认当前飞书应用有访问该文档的权限\n4. 如果是企业文档，确认应用已被授权访问")
+                # 对于404错误，不抛出异常，而是返回None，让调用者处理
+                self.logger.info(f"Document {document_id} not found or no access, will skip in batch operations")
+                return None
             elif "429" in str(e) or "Too Many Requests" in str(e):
                 raise Exception(f"{error_msg}\n建议：API调用频率过高，请稍后重试")
             else:
@@ -387,16 +389,34 @@ class FeishuClient:
             # 获取文档基本信息
             doc_info = self.get_document_info(document_id)
             
-            # 尝试获取文档内容
-            try:
-                content_data = self.get_document_content(document_id)
-            except Exception as content_error:
-                self.logger.warning(f"Failed to get document content, using fallback mode: {content_error}")
-                # 使用fallback模式，仅使用基本信息
+            # 检查doc_info是否为None（文档不存在或无权访问）
+            if doc_info is None:
+                self.logger.warning(f"Document {document_id} not accessible, using fallback mode")
+                # 使用默认值
+                doc_info = {
+                    "title": "无法访问的文档",
+                    "file": {"name": "无法访问的文档"},
+                    "created_time": None,
+                    "modified_time": None,
+                    "owner_id": None,
+                    "size": 0
+                }
+                # 强制使用fallback模式
                 content_data = {
                     "fallback_mode": True,
                     "document": {"blocks": {}}
                 }
+            else:
+                # 尝试获取文档内容
+                try:
+                    content_data = self.get_document_content(document_id)
+                except Exception as content_error:
+                    self.logger.warning(f"Failed to get document content, using fallback mode: {content_error}")
+                    # 使用fallback模式，仅使用基本信息
+                    content_data = {
+                        "fallback_mode": True,
+                        "document": {"blocks": {}}
+                    }
             
             # 解析文档结构
             # 根据数据结构获取标题
@@ -482,11 +502,30 @@ class FeishuClient:
                 parsed_block["content"] = self._parse_text_elements(elements)
                 parsed_block["level"] = 2
                 
+            elif block_type == 4:  # 另一种二级标题格式
+                parsed_block["type"] = "heading2"
+                # 尝试不同的可能字段名
+                elements = (block_data.get("heading2", {}).get("elements", []) or 
+                           block_data.get("heading", {}).get("elements", []) or
+                           block_data.get("text", {}).get("elements", []))
+                parsed_block["content"] = self._parse_text_elements(elements)
+                parsed_block["level"] = 2
+                
             elif block_type == 5:  # 三级标题
                 parsed_block["type"] = "heading3"
                 elements = block_data.get("heading3", {}).get("elements", [])
                 parsed_block["content"] = self._parse_text_elements(elements)
                 parsed_block["level"] = 3
+                
+            elif block_type == 12:  # 无序列表项
+                parsed_block["type"] = "bullet"
+                elements = block_data.get("bullet", {}).get("elements", [])
+                parsed_block["content"] = self._parse_text_elements(elements)
+                
+            elif block_type == 13:  # 有序列表项
+                parsed_block["type"] = "ordered"
+                elements = block_data.get("ordered", {}).get("elements", [])
+                parsed_block["content"] = self._parse_text_elements(elements)
                 
             elif block_type == 14:  # 代码块
                 parsed_block["type"] = "code"
@@ -494,6 +533,11 @@ class FeishuClient:
                 parsed_block["content"] = self._parse_text_elements(elements)
                 style = block_data.get("code", {}).get("style", {})
                 parsed_block["language"] = self._get_language_from_id(style.get("language", 0))
+                
+            elif block_type == 22:  # 引用块
+                parsed_block["type"] = "quote"
+                elements = block_data.get("quote", {}).get("elements", [])
+                parsed_block["content"] = self._parse_text_elements(elements)
                 
             elif block_type == 27:  # 图片块
                 parsed_block["type"] = "image"
@@ -685,8 +729,25 @@ class FeishuClient:
         """递归获取文件夹及其子文件夹中的所有文档，带有API限流和深度限制"""
         all_docs = []
         visited_folders = set()  # 防止循环引用
+        
+        # 用于统计的变量
+        self._scan_stats = {
+            'total_files': 0,
+            'folders_scanned': 0,
+            'file_types': {}
+        }
+        
         self._get_all_folder_documents_recursive(folder_token, all_docs, visited_folders, 0, max_depth)
-        self.logger.info(f"Retrieved total {len(all_docs)} documents from root folder {folder_token}")
+        
+        # 输出详细统计信息
+        self.logger.info(f"Scan completed for folder {folder_token}:")
+        self.logger.info(f"  - Total files scanned: {self._scan_stats['total_files']}")
+        self.logger.info(f"  - Folders scanned: {self._scan_stats['folders_scanned']}")
+        self.logger.info(f"  - Supported documents found: {len(all_docs)}")
+        if self._scan_stats['file_types']:
+            for file_type, count in self._scan_stats['file_types'].items():
+                self.logger.info(f"  - {file_type}: {count} files")
+        
         return all_docs
 
     def _get_all_folder_documents_recursive(self, folder_token: str, all_docs: List[Dict[str, Any]], 
@@ -704,6 +765,7 @@ class FeishuClient:
             return
             
         visited_folders.add(folder_token)
+        self._scan_stats['folders_scanned'] += 1
         page_token = None
         
         while True:
@@ -716,13 +778,22 @@ class FeishuClient:
                 
                 for item in files:
                     item_type = item.get("type")
+                    self._scan_stats['total_files'] += 1
+                    
+                    # 统计文件类型
+                    if item_type in self._scan_stats['file_types']:
+                        self._scan_stats['file_types'][item_type] += 1
+                    else:
+                        self._scan_stats['file_types'][item_type] = 1
+                    
                     if item_type == 'folder':
                         # 如果是文件夹，递归进入
                         self._get_all_folder_documents_recursive(
                             item.get("token"), all_docs, visited_folders, current_depth + 1, max_depth
                         )
-                    elif item_type in ["docx", "doc", "sheet", "bitable"]:
+                    elif item_type in ["docx", "doc", "sheet", "bitable", "docs"]:
                         # 如果是支持的文档类型，添加到列表
+                        self.logger.debug(f"Found document: {item.get('name')} (type: {item_type})")
                         all_docs.append({
                             "token": item.get("token"),
                             "name": item.get("name"),
@@ -734,6 +805,9 @@ class FeishuClient:
                             "size": item.get("size", 0),
                             "folder_path": folder_token  # 记录所在文件夹
                         })
+                    else:
+                        # 记录不支持的文档类型
+                        self.logger.debug(f"Skipped unsupported file type: {item.get('name')} (type: {item_type})")
 
                 # 检查分页信息
                 if data.get("has_more") and data.get("page_token"):

@@ -5,6 +5,8 @@ import logging
 from typing import Dict, Any, Optional
 from datetime import datetime
 
+from app.utils.helpers import get_beijing_time
+
 from app.services import FeishuClient, NotionClient, QiniuClient
 from app.models import SyncRecordService, ImageMappingService
 
@@ -56,8 +58,8 @@ class SyncProcessor:
                 
                 # 更新状态为处理中
                 sync_record.sync_status = 'processing'
-                sync_record.last_sync_time = datetime.utcnow()
-                sync_record.updated_at = datetime.utcnow()
+                sync_record.last_sync_time = get_beijing_time().replace(tzinfo=None)
+                sync_record.updated_at = get_beijing_time().replace(tzinfo=None)
                 session.commit()
             
             # 根据同步方向选择处理方法
@@ -74,8 +76,8 @@ class SyncProcessor:
                 if sync_record:
                     sync_record.sync_status = 'success'
                     sync_record.target_id = result.get('target_id')
-                    sync_record.last_sync_time = datetime.utcnow()
-                    sync_record.updated_at = datetime.utcnow()
+                    sync_record.last_sync_time = get_beijing_time().replace(tzinfo=None)
+                    sync_record.updated_at = get_beijing_time().replace(tzinfo=None)
                     session.commit()
             
             logger.info(f"Successfully completed sync task {sync_record_id}")
@@ -95,8 +97,8 @@ class SyncProcessor:
                     if sync_record:
                         sync_record.sync_status = 'failed'
                         sync_record.error_message = str(e)
-                        sync_record.last_sync_time = datetime.utcnow()
-                        sync_record.updated_at = datetime.utcnow()
+                        sync_record.last_sync_time = get_beijing_time().replace(tzinfo=None)
+                        sync_record.updated_at = get_beijing_time().replace(tzinfo=None)
                         session.commit()
             except Exception as update_error:
                 logger.error(f"Failed to update sync record {sync_record_id} status: {update_error}")
@@ -193,7 +195,7 @@ class SyncProcessor:
                     },
                     "date": {
                         "date": {
-                            "start": datetime.utcnow().date().isoformat()
+                            "start": get_beijing_time().date().isoformat()
                         }
                     }
                 }
@@ -233,7 +235,23 @@ class SyncProcessor:
             # 1. 从飞书获取文档内容
             try:
                 feishu_content = self.feishu_client.parse_document_content(source_id)
-                logger.info(f"Retrieved Feishu document: {feishu_content['title']}")
+                document_title = feishu_content.get('title', '')
+                logger.info(f"Retrieved Feishu document: {document_title}")
+                
+                # 更新同步记录的文档标题
+                from database.connection import db
+                from database.models import SyncRecord
+                with db.get_session() as session:
+                    sync_record = session.query(SyncRecord).filter(
+                        SyncRecord.source_platform == 'feishu',
+                        SyncRecord.source_id == source_id
+                    ).order_by(SyncRecord.created_at.desc()).first()
+                    
+                    if sync_record and not sync_record.document_title:
+                        sync_record.document_title = document_title
+                        session.commit()
+                        logger.info(f"Updated document title for record {sync_record.id}: {document_title}")
+                        
             except Exception as e:
                 # 不再返回测试数据，而是抛出详细错误
                 error_msg = f"获取飞书文档失败 (文档ID: {source_id}): {str(e)}"
@@ -303,7 +321,7 @@ class SyncProcessor:
                             
                             if current_record and not current_record.target_id:
                                 current_record.target_id = existing_page_id
-                                current_record.updated_at = datetime.utcnow()
+                                current_record.updated_at = get_beijing_time().replace(tzinfo=None)
                                 session.commit()
                                 logger.info(f"Updated sync record {current_record.id} with target_id: {existing_page_id}")
                         
@@ -346,7 +364,7 @@ class SyncProcessor:
                     },
                     "date": {
                         "date": {
-                            "start": datetime.utcnow().date().isoformat()
+                            "start": get_beijing_time().date().isoformat()
                         }
                     }
                 }
@@ -450,7 +468,10 @@ class SyncProcessor:
             # 检查源文档是否存在
             if sync_record.source_platform == 'feishu':
                 try:
-                    self.feishu_client.get_document_info(sync_record.source_id)
+                    doc_info = self.feishu_client.get_document_info(sync_record.source_id)
+                    if doc_info is None:
+                        logger.warning(f"Source Feishu document {sync_record.source_id} not accessible or not found")
+                        return False
                 except Exception as e:
                     logger.error(f"Source Feishu document {sync_record.source_id} not accessible: {e}")
                     return False

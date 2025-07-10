@@ -4,8 +4,42 @@
 """
 import time
 import random
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional
+
+
+def get_beijing_time() -> datetime:
+    """获取北京时间"""
+    # 创建北京时区 (UTC+8)
+    beijing_tz = timezone(timedelta(hours=8))
+    return datetime.now(beijing_tz)
+
+
+def get_beijing_time_str() -> str:
+    """获取北京时间字符串格式"""
+    return get_beijing_time().strftime('%Y-%m-%d %H:%M:%S')
+
+
+def utc_to_beijing(utc_dt: datetime) -> datetime:
+    """将UTC时间转换为北京时间"""
+    if utc_dt.tzinfo is None:
+        # 如果没有时区信息，假设是UTC
+        utc_dt = utc_dt.replace(tzinfo=timezone.utc)
+    
+    # 转换为北京时间
+    beijing_tz = timezone(timedelta(hours=8))
+    return utc_dt.astimezone(beijing_tz)
+
+
+def beijing_to_utc(beijing_dt: datetime) -> datetime:
+    """将北京时间转换为UTC时间"""
+    if beijing_dt.tzinfo is None:
+        # 如果没有时区信息，假设是北京时间
+        beijing_tz = timezone(timedelta(hours=8))
+        beijing_dt = beijing_dt.replace(tzinfo=beijing_tz)
+    
+    # 转换为UTC
+    return beijing_dt.astimezone(timezone.utc)
 
 
 def format_datetime(dt: datetime = None) -> str:

@@ -126,3 +126,17 @@ def register_routes(bp):
             return APIResponse.success(result)
         except Exception as e:
             return APIResponse.error(f"获取监控统计失败: {str(e)}", "MONITORING_STATS_ERROR", status_code=500)
+
+    @bp.route('/recent-activities', methods=['GET'])
+    def get_recent_activities():
+        """获取最近活动记录"""
+        try:
+            from flask import request
+            limit = request.args.get('limit', 10, type=int)
+            limit = min(limit, 50)  # 限制最大数量
+            
+            monitoring_service = MonitoringService(logger=current_app.logger)
+            result = monitoring_service.get_recent_activities(limit)
+            return APIResponse.success(result)
+        except Exception as e:
+            return APIResponse.error(f"获取最近活动失败: {str(e)}", "RECENT_ACTIVITIES_ERROR", status_code=500)

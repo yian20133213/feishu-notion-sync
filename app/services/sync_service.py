@@ -10,6 +10,8 @@ from typing import List, Dict, Any, Optional, Tuple
 from contextlib import contextmanager
 import logging
 
+from app.utils.helpers import get_beijing_time
+
 from database.connection import db
 from database.models import SyncRecord, SyncConfig, ImageMapping
 
@@ -158,7 +160,7 @@ class SyncService:
                 if not updated:
                     raise ValueError("没有提供要更新的字段")
                 
-                config.updated_at = datetime.now()
+                config.updated_at = get_beijing_time().replace(tzinfo=None)
                 session.commit()
                 
                 return {"message": "配置更新成功"}
@@ -279,7 +281,7 @@ class SyncService:
                             elif existing_record.sync_status == 'success' and existing_record.target_id:
                                 # 如果已经成功同步且有target_id，重用现有记录而不是创建新的
                                 existing_record.sync_status = 'pending'
-                                existing_record.updated_at = datetime.utcnow()
+                                existing_record.updated_at = get_beijing_time().replace(tzinfo=None)
                                 session.flush()
                                 
                                 created_records.append({
@@ -356,12 +358,15 @@ class SyncService:
                     ).delete(synchronize_session=False)
                 
                 elif status:
-                    if status not in ['failed', 'completed', 'pending']:
+                    if status == 'all':
+                        # 删除所有记录
+                        deleted_count = session.query(SyncRecord).delete(synchronize_session=False)
+                    elif status in ['failed', 'completed', 'pending', 'success', 'processing', 'error']:
+                        deleted_count = session.query(SyncRecord).filter(
+                            SyncRecord.sync_status == status
+                        ).delete(synchronize_session=False)
+                    else:
                         raise ValueError("无效的状态值")
-                    
-                    deleted_count = session.query(SyncRecord).filter(
-                        SyncRecord.sync_status == status
-                    ).delete(synchronize_session=False)
                 
                 session.commit()
                 
@@ -372,6 +377,37 @@ class SyncService:
                 
         except Exception as e:
             self.logger.error(f"批量删除同步记录失败: {e}")
+            raise
+    
+    def retry_sync_record(self, record_id: int) -> Dict[str, Any]:
+        """重试单个同步记录"""
+        try:
+            with db.get_session() as session:
+                # 获取记录
+                record = session.query(SyncRecord).filter(SyncRecord.id == record_id).first()
+                if not record:
+                    raise ValueError(f"记录 {record_id} 不存在")
+                
+                # 检查记录状态
+                if record.sync_status not in ['failed', 'error']:
+                    raise ValueError(f"记录 {record_id} 状态为 {record.sync_status}，无需重试")
+                
+                # 重置记录状态
+                record.sync_status = 'pending'
+                record.error_message = None
+                record.updated_at = get_beijing_time().replace(tzinfo=None)
+                session.commit()
+                
+                self.logger.info(f"已重试同步记录: {record_id}")
+                
+                return {
+                    "message": f"已重试记录 {record_id}",
+                    "record_id": record_id,
+                    "status": "pending"
+                }
+                
+        except Exception as e:
+            self.logger.error(f"重试同步记录失败: {e}")
             raise
     
     def retry_sync_records_batch(self, record_ids: List[int], retry_failed_only: bool = True) -> Dict[str, Any]:
@@ -395,7 +431,7 @@ class SyncService:
                 for record in query.all():
                     record.sync_status = 'pending'
                     record.error_message = None
-                    record.updated_at = datetime.now()
+                    record.updated_at = get_beijing_time().replace(tzinfo=None)
                     updated_count += 1
                 
                 session.commit()

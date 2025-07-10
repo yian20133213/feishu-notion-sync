@@ -35,6 +35,14 @@ class DocumentService(SyncService):
                             doc_id = url.split('/docs/')[-1].split('?')[0].split('#')[0]
                         elif '/docx/' in url:
                             doc_id = url.split('/docx/')[-1].split('?')[0].split('#')[0]
+                        elif '/folder/' in url:
+                            # 文件夹URL不应该被当作文档ID处理
+                            self.logger.warning(f"Folder URL detected: {url}, skipping as it's not a document")
+                            continue
+                        elif '/drive/' in url:
+                            # 其他drive相关URL也跳过
+                            self.logger.warning(f"Drive URL detected: {url}, skipping as it's not a document")
+                            continue
                         else:
                             doc_id = url.split('/')[-1].split('?')[0].split('#')[0] if '/' in url else url
                     elif 'notion' in url:
@@ -218,7 +226,12 @@ class DocumentService(SyncService):
             feishu_client = FeishuClient(logger=self.logger)
             notion_client = NotionClient()
             
-            # 1. 从飞书获取文档内容
+            # 1. 先检查文档是否可访问
+            doc_info = feishu_client.get_document_info(feishu_doc_id)
+            if doc_info is None:
+                raise Exception(f"文档不存在或无访问权限 (文档ID: {feishu_doc_id})")
+            
+            # 从飞书获取文档内容
             self.logger.info(f"正在从飞书获取文档内容: {feishu_doc_id}")
             
             # 检查是否有真实的飞书配置
@@ -322,32 +335,27 @@ class DocumentService(SyncService):
                         continue
                 
                 if block_type in ['text']:
+                    # 使用notion_client的_create_rich_text方法来正确处理格式
+                    rich_text = notion_client._create_rich_text(block_content)
                     content_blocks.append({
                         "object": "block",
                         "type": "paragraph",
                         "paragraph": {
-                            "rich_text": [{
-                                "type": "text",
-                                "text": {
-                                    "content": block_content
-                                }
-                            }]
+                            "rich_text": rich_text
                         }
                     })
                 elif block_type in ['heading1', 'heading2', 'heading3']:
                     # 处理标题块
                     heading_level = block.get('level', 1)
                     heading_type = f"heading_{min(heading_level, 3)}"  # Notion最多支持3级标题
+                    
+                    # 使用notion_client的_create_rich_text方法来正确处理格式
+                    rich_text = notion_client._create_rich_text(block_content)
                     content_blocks.append({
                         "object": "block",
                         "type": heading_type,
                         heading_type: {
-                            "rich_text": [{
-                                "type": "text",
-                                "text": {
-                                    "content": block_content
-                                }
-                            }]
+                            "rich_text": rich_text
                         }
                     })
                 elif block_type == 'code':
@@ -369,10 +377,34 @@ class DocumentService(SyncService):
                         }
                     })
                 elif block_type == 'image':
-                    # 处理图片块，先上传到七牛云再创建Notion图片块
+                    # 处理图片块
                     file_token = block.get('file_token', '')
                     alt_text = block.get('alt_text', '')
-                    if file_token:
+                    cdn_url = block.get('cdn_url', '')  # 检查是否已经由sync_processor处理过
+                    
+                    if cdn_url:
+                        # 图片已经由sync_processor处理过，直接使用CDN URL
+                        content_blocks.append({
+                            "object": "block",
+                            "type": "image",
+                            "image": {
+                                "type": "external",
+                                "external": {
+                                    "url": cdn_url
+                                },
+                                "caption": [
+                                    {
+                                        "type": "text",
+                                        "text": {
+                                            "content": alt_text or "图片"
+                                        }
+                                    }
+                                ] if alt_text else []
+                            }
+                        })
+                        self.logger.info(f"使用已处理的图片: {file_token} -> {cdn_url}")
+                    elif file_token:
+                        # 图片尚未处理，尝试处理（fallback模式）
                         try:
                             # 导入七牛云客户端
                             from app.services.qiniu_client import QiniuClient
@@ -442,18 +474,18 @@ class DocumentService(SyncService):
                                     ]
                                 }
                             })
+                    else:
+                        # 没有图片token，跳过
+                        self.logger.warning(f"图片块缺少file_token，跳过处理")
                 else:
                     # 其他类型都当作段落处理
+                    # 使用notion_client的_create_rich_text方法来正确处理格式
+                    rich_text = notion_client._create_rich_text(block_content or f"[{block_type}内容]")
                     content_blocks.append({
                         "object": "block",
                         "type": "paragraph",
                         "paragraph": {
-                            "rich_text": [{
-                                "type": "text",
-                                "text": {
-                                    "content": block_content or f"[{block_type}内容]"
-                                }
-                            }]
+                            "rich_text": rich_text
                         }
                     })
             
@@ -695,6 +727,25 @@ class DocumentService(SyncService):
                 # 计算同步状态统计（简化版本，假设所有文档都未启用同步）
                 sync_enabled_count = 0
                 
+                # 记录扫描结果
+                scan_summary = f"扫描完成：找到 {len(all_documents)} 个可同步文档"
+                if hasattr(feishu_client, '_scan_stats') and feishu_client._scan_stats:
+                    stats = feishu_client._scan_stats
+                    scan_summary += f"，共扫描 {stats.get('total_files', 0)} 个文件，{stats.get('folders_scanned', 0)} 个文件夹"
+                
+                self.logger.info(scan_summary)
+                
+                # 如果没有找到任何可同步文档，记录详细信息
+                if len(all_documents) == 0:
+                    if hasattr(feishu_client, '_scan_stats') and feishu_client._scan_stats:
+                        stats = feishu_client._scan_stats
+                        file_types = stats.get('file_types', {})
+                        if file_types:
+                            unsupported_info = "发现的文件类型: " + ", ".join([f"{t}({c}个)" for t, c in file_types.items()])
+                            self.logger.warning(f"文件夹中没有可同步的文档。{unsupported_info}")
+                        else:
+                            self.logger.warning("文件夹为空或无法访问任何文件")
+                
                 return {
                     "folder_id": folder_id,
                     "total_documents": len(all_documents),
@@ -705,6 +756,8 @@ class DocumentService(SyncService):
                         "max_depth": max_depth,
                         "use_cache": use_cache
                     },
+                    "scan_summary": scan_summary,
+                    "scan_stats": getattr(feishu_client, '_scan_stats', {}),
                     "documents": [
                         {
                             "id": doc.get("token"),  # 使用token作为id

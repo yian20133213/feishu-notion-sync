@@ -19,6 +19,7 @@ class SyncRecord(Base):
     target_platform = Column(String(20), nullable=False)
     source_id = Column(String(100), nullable=False)       # 源文档ID
     target_id = Column(String(100), nullable=True)        # 目标文档ID
+    document_title = Column(String(500), nullable=True)   # 文档标题
     content_type = Column(String(20), nullable=False, default='document')     # 'document', 'database', 'page'
     sync_status = Column(String(20), nullable=False, default='pending')      # 'pending', 'processing', 'success', 'failed'
     last_sync_time = Column(CompatibleTimestamp, nullable=True)
