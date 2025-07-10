@@ -6,6 +6,19 @@ import os
 import sys
 from app.core import create_app, start_task_processor
 
+# 加载环境变量
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # 如果没有python-dotenv包，直接加载.env文件
+    if os.path.exists('.env'):
+        with open('.env', 'r') as f:
+            for line in f:
+                if line.strip() and not line.startswith('#'):
+                    key, value = line.strip().split('=', 1)
+                    os.environ[key] = value
+
 
 def main():
     """主函数 - 启动Flask应用"""

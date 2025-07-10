@@ -46,6 +46,15 @@ alembic upgrade head
 
 # Rollback migrations
 alembic downgrade -1
+
+# View migration history
+alembic history --verbose
+
+# Check current migration status
+alembic current
+
+# Show SQL for migration (dry run)
+alembic upgrade head --sql
 ```
 
 ### Health Checks and Monitoring
@@ -78,6 +87,20 @@ venv\Scripts\activate     # On Windows
 python -m py_compile app.py
 find app -name "*.py" -exec python -m py_compile {} \;
 
+# Validate configuration and service connections
+python -c "
+from config.settings import settings
+print('Feishu configured:', settings.is_feishu_configured())
+print('Notion configured:', settings.is_notion_configured()) 
+print('Qiniu configured:', settings.is_qiniu_configured())
+"
+
+# Test database connection
+python -c "
+from database.connection import db
+print('Database connection test:', db.test_connection())
+"
+
 # Run a specific sync manually (via Python console)
 python -c "
 from app.services.sync_processor import SyncProcessor
@@ -87,12 +110,6 @@ processor.process_sync_task({
     'target_platform': 'notion',
     'source_id': 'doc_id_here'
 })
-"
-
-# Test database connection
-python -c "
-from database.connection import db
-print('Database connection test:', db.test_connection())
 "
 ```
 
@@ -117,6 +134,37 @@ nano .env  # or vim .env
 # - LOG_LEVEL: Logging level (INFO, DEBUG, WARNING, ERROR)
 # - MAX_SYNC_RETRIES: Maximum retry attempts for failed syncs (default: 3)
 # - SYNC_TIMEOUT_SECONDS: Timeout for sync operations (default: 300)
+```
+
+### Static Assets Management
+```bash
+# Check static file structure
+ls -la static/css/
+ls -la static/js/
+ls -la static/images/
+
+# Verify frontend assets are loading
+curl http://localhost:5000/static/css/main.css
+curl http://localhost:5000/static/js/app.js
+```
+
+## Documentation System
+
+The project maintains comprehensive documentation in the `docs/` directory:
+
+```bash
+# View complete documentation index
+cat docs/DOCUMENTATION_INDEX.md
+
+# Access main project documentation
+cat docs/README.md
+
+# Check project structure guide
+cat docs/PROJECT_STRUCTURE.md
+
+# Review API development guides
+cat docs/API_OPTIMIZATION_COMPLETE.md
+cat docs/FRONTEND_ARCHITECTURE_GUIDE.md
 ```
 
 ## Architecture
@@ -207,6 +255,8 @@ The application follows a modular Flask architecture with clear separation of co
 - **Environment Config**: All secrets in .env file
 - **Python 3.6 Compatibility**: Custom datetime handling for older Python versions
 - **Unified HTTP Client**: Uses httpx throughout for consistency
+- **Configuration Management**: Centralized settings in `config/settings.py` with environment validation
+- **Comprehensive Documentation**: Extensive docs system with specialized guides for different aspects
 
 ## Important Notes
 
