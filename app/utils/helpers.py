@@ -98,9 +98,11 @@ def safe_row_to_dict(row, default_values: Dict = None) -> Dict:
 
 def generate_record_number() -> str:
     """生成唯一记录编号"""
-    timestamp = int(time.time())
-    random_suffix = random.randint(100, 999)
-    return f"{timestamp}_{random_suffix}"
+    import uuid
+    # 使用更高精度的时间戳和UUID的一部分确保唯一性
+    timestamp = int(time.time() * 1000)  # 毫秒级时间戳
+    uuid_suffix = str(uuid.uuid4())[:8]  # UUID前8位
+    return f"{timestamp}_{uuid_suffix}"
 
 
 def paginate_query(base_query: str, page: int = 1, per_page: int = 20, max_per_page: int = 100) -> Dict[str, Any]:

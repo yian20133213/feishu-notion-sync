@@ -136,6 +136,7 @@ class DocumentService(SyncService):
                                     })
                                     break  # 跳出重试循环
                             
+                            # 在重试循环内重新生成记录编号，避免唯一性冲突
                             record_number = self.generate_record_number()
                             
                             # 创建同步记录，状态设为pending让后台任务处理器处理
@@ -697,6 +698,11 @@ class DocumentService(SyncService):
         try:
             if not folder_id:
                 raise ValueError("请提供有效的文件夹ID")
+            
+            # 修复：检查folder_id是否是错误消息，如果是则拒绝处理
+            if "文件夹中没有可同步的文档" in folder_id or "扫描完成" in folder_id:
+                self.logger.error(f"检测到无效的文件夹ID（包含错误消息）: {folder_id}")
+                raise ValueError("无效的文件夹ID：包含错误消息内容")
             
             self.logger.info(f"开始扫描文件夹: {folder_id}, 深度: {max_depth}")
             
