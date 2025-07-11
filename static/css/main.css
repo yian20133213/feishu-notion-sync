@@ -58,6 +58,8 @@ body {
     flex-shrink: 0;
     background-color: white;
     border-right: 1px solid #e5e7eb;
+    position: relative;
+    z-index: 10;
 }
 
 /* 主内容区域 - 使用flex-1占据剩余空间 */
@@ -66,6 +68,8 @@ body {
     height: 100vh;
     overflow-y: auto;
     background-color: #f9fafb;
+    position: relative;
+    z-index: 15;
 }
 
 
@@ -136,47 +140,18 @@ body {
     }
 }
 
-/* 优化右下角固定定位元素 */
+/* 隐藏所有右下角固定定位元素 */
 [style*="position: fixed"][style*="bottom"][style*="right"],
 .fixed.bottom-4.right-4,
-.floating-button {
-    z-index: 40 !important; /* 降低层级，避免遮挡模态框 */
+.fixed.bottom-6.right-6,
+.floating-button,
+*[style*="position: fixed; bottom:"],
+*[style*="position: fixed; right:"],
+*[style*="position:fixed;bottom:"],
+*[style*="position:fixed;right:"] {
+    display: none !important;
 }
 
-/* 版本历史悬浮球样式 */
-#versions-floating-ball {
-    transition: all 0.3s ease-in-out;
-}
-
-#versions-floating-ball:hover {
-    transform: translateY(-2px);
-}
-
-/* 在小屏幕上优化悬浮球 */
-@media (max-width: 768px) {
-    #versions-floating-ball {
-        bottom: 1rem !important;
-        right: 1rem !important;
-    }
-    
-    #versions-floating-ball button {
-        width: 3rem !important;
-        height: 3rem !important;
-    }
-    
-    #versions-menu {
-        width: 200px !important;
-        right: 0 !important;
-        bottom: 4rem !important;
-    }
-    
-    /* 隐藏其他可能的悬浮按钮 */
-    [style*="position: fixed"][style*="bottom"][style*="right"]:not(#versions-floating-ball),
-    .fixed.bottom-4.right-4:not(#versions-floating-ball),
-    .floating-button:not(#versions-floating-ball) {
-        display: none !important;
-    }
-}
 
 /* 卡片悬停效果 */
 .card-hover {
@@ -247,4 +222,22 @@ body {
 @keyframes slideInRight {
     from { transform: translateX(100%); opacity: 0; }
     to { transform: translateX(0); opacity: 1; }
+}
+
+/* 分页控件样式 */
+#pagination-container {
+    position: relative;
+    z-index: 20 !important;
+    background-color: white;
+    margin-bottom: 2rem;
+}
+
+/* 确保数据页面内容不会被侧边栏遮挡 */
+#data-page {
+    padding-bottom: 6rem !important;
+}
+
+/* 页面内容的底部边距 */
+.page-content {
+    padding-bottom: 4rem;
 }

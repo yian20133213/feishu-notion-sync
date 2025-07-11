@@ -95,12 +95,10 @@
                     console.log('监控页面初始化完成');
                 }, 200);
             } else if (pageId === 'data') {
+                // 立即初始化分页控制
+                initDataPagePagination();
                 // 加载数据管理页面的默认数据
                 refreshDataView();
-                // 确保分页控制初始化
-                setTimeout(() => {
-                    initDataPagePagination();
-                }, 100);
             } else if (pageId === 'settings') {
                 loadSystemSettings();
             } else if (pageId === 'help') {
@@ -1695,11 +1693,6 @@
                 });
             }
             
-            // 版本相关按钮
-            const toggleVersionsFloatingBallBtn = document.querySelector('[title="版本历史悬浮球"]');
-            if (toggleVersionsFloatingBallBtn) {
-                toggleVersionsFloatingBallBtn.addEventListener('click', toggleVersionsFloatingBall);
-            }
 
             // 配置相关按钮
             const showConfigModalBtns = document.querySelectorAll('button[onclick*="showConfigModal"]');
@@ -1743,11 +1736,7 @@
                 btn.addEventListener('click', refreshDataView);
             });
 
-            // 绑定分页大小选择事件
-            const pageSizeSelect = document.getElementById('page-size');
-            if (pageSizeSelect) {
-                pageSizeSelect.addEventListener('change', changePageSize);
-            }
+            // 分页大小选择事件将由initDataPagePagination()处理
 
             // 全局刷新按钮
             const refreshAllDataBtns = document.querySelectorAll('button[onclick*="refreshAllData"]');
@@ -1787,17 +1776,17 @@
                 deleteAllBtn.addEventListener('click', deleteAllRecords);
             }
 
-            // 分页按钮
-            const prevPageBtn = document.getElementById('prev-page');
-            const nextPageBtn = document.getElementById('next-page');
-            if (prevPageBtn) {
-                prevPageBtn.removeAttribute('onclick');
-                prevPageBtn.addEventListener('click', () => changePage(-1));
-            }
-            if (nextPageBtn) {
-                nextPageBtn.removeAttribute('onclick');
-                nextPageBtn.addEventListener('click', () => changePage(1));
-            }
+            // 分页按钮 - 这部分将由initDataPagePagination()处理，删除重复绑定
+            // const prevPageBtn = document.getElementById('prev-page');
+            // const nextPageBtn = document.getElementById('next-page');
+            // if (prevPageBtn) {
+            //     prevPageBtn.removeAttribute('onclick');
+            //     prevPageBtn.addEventListener('click', () => changePage(-1));
+            // }
+            // if (nextPageBtn) {
+            //     nextPageBtn.removeAttribute('onclick');
+            //     nextPageBtn.addEventListener('click', () => changePage(1));
+            // }
 
             // 连接测试按钮
             const testFeishuBtn = document.querySelector('button[onclick*="testFeishuConnection"]');
@@ -1849,12 +1838,6 @@
                 }
             });
 
-            // 版本悬浮球相关
-            const versionsBallMain = document.getElementById('versions-ball-main');
-            if (versionsBallMain) {
-                versionsBallMain.removeAttribute('onclick');
-                versionsBallMain.addEventListener('click', toggleVersionsMenu);
-            }
 
             const showVersionInfoBtn = document.querySelector('button[onclick*="showVersionInfo"]');
             if (showVersionInfoBtn) {
@@ -2365,7 +2348,7 @@
                 console.log('加载同步记录视图...');
                 try {
                     loadDataStats();
-                    loadMonitoringSyncRecords();
+                    loadDataPageRecords();
                 } catch (error) {
                     console.error('数据视图加载失败:', error);
                     // 显示友好的错误消息而不是保持加载状态
@@ -2515,6 +2498,41 @@
                     </div>
                 </div>
             `;
+        }
+
+        // 专门为数据页面加载记录的函数
+        function loadDataPageRecords() {
+            console.log('加载数据页面记录');
+            
+            // 获取分页参数
+            const pageSizeEl = document.getElementById('page-size');
+            const currentPageEl = document.getElementById('current-page');
+            const limit = pageSizeEl ? parseInt(pageSizeEl.value) : 20;
+            const page = currentPageEl ? parseInt(currentPageEl.textContent) : 1;
+            
+            fetch(`/api/v1/sync/records?limit=${limit}&page=${page}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('数据页面记录响应:', data);
+                    
+                    if (data.success) {
+                        // 更新数据管理页面
+                        updateDataRecordsTable(data.data.items || []);
+                        updatePagination(data.data.pagination || {});
+                    } else {
+                        console.warn('数据页面记录加载失败:', data.message);
+                        showNotification('记录加载失败: ' + (data.message || '未知错误'), 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('数据页面记录加载失败:', error);
+                    showNotification('记录加载失败: ' + error.message, 'error');
+                });
         }
 
         function loadMonitoringSyncRecords() {
@@ -3585,8 +3603,6 @@
             const totalRecords = document.getElementById('total-records');
             const currentPage = document.getElementById('current-page');
             const totalPages = document.getElementById('total-pages');
-            const prevButton = document.getElementById('prev-page');
-            const nextButton = document.getElementById('next-page');
             const pageNumbers = document.getElementById('page-numbers');
             
             if (!totalRecords || !currentPage || !totalPages) {
@@ -3599,16 +3615,8 @@
             currentPage.textContent = pagination.page || 1;
             totalPages.textContent = pagination.pages || 1;
             
-            // 更新按钮状态（不要覆盖已经绑定的事件）
-            if (prevButton) {
-                prevButton.disabled = (pagination.page || 1) <= 1;
-                // 不要覆盖onclick，保持addEventListener绑定的事件
-            }
-            
-            if (nextButton) {
-                nextButton.disabled = (pagination.page || 1) >= (pagination.pages || 1);
-                // 不要覆盖onclick，保持addEventListener绑定的事件
-            }
+            // 更新按钮状态
+            updatePaginationButtons(pagination.page || 1, pagination.pages || 1);
             
             // 生成页码按钮
             if (pageNumbers) {
@@ -3622,17 +3630,16 @@
             if (currentPageEl) {
                 currentPageEl.textContent = page;
             }
-            loadMonitoringSyncRecords();
+            
+            // 更新上一页下一页按钮状态
+            const totalPagesEl = document.getElementById('total-pages');
+            const totalPages = totalPagesEl ? parseInt(totalPagesEl.textContent) : 1;
+            updatePaginationButtons(page, totalPages);
+            
+            // 直接调用数据页面记录加载函数
+            loadDataPageRecords();
         }
         
-        function changePageSize() {
-            console.log('改变页面大小');
-            const currentPageEl = document.getElementById('current-page');
-            if (currentPageEl) {
-                currentPageEl.textContent = '1'; // 重置为第一页
-            }
-            loadMonitoringSyncRecords();
-        }
         
         function generatePageNumbers(currentPage, totalPages) {
             const pageNumbers = document.getElementById('page-numbers');
@@ -3680,8 +3687,13 @@
                 ? 'bg-blue-600 text-white' 
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`;
-            // 使用addEventListener而不是onclick
-            button.addEventListener('click', () => changePage(pageNum));
+            // 使用addEventListener而不是onclick，添加调试
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('页码按钮被点击:', pageNum);
+                changePage(pageNum);
+            });
             container.appendChild(button);
         }
         
@@ -3692,6 +3704,23 @@
             container.appendChild(ellipsis);
         }
         
+        function updatePaginationButtons(currentPage, totalPages) {
+            const prevPageBtn = document.getElementById('prev-page');
+            const nextPageBtn = document.getElementById('next-page');
+            
+            if (prevPageBtn) {
+                prevPageBtn.disabled = currentPage <= 1;
+                prevPageBtn.classList.toggle('opacity-50', currentPage <= 1);
+                prevPageBtn.classList.toggle('cursor-not-allowed', currentPage <= 1);
+            }
+            
+            if (nextPageBtn) {
+                nextPageBtn.disabled = currentPage >= totalPages;
+                nextPageBtn.classList.toggle('opacity-50', currentPage >= totalPages);
+                nextPageBtn.classList.toggle('cursor-not-allowed', currentPage >= totalPages);
+            }
+        }
+
         function changePageSize() {
             console.log('修改页面大小');
             // 重置到第一页
@@ -3699,8 +3728,12 @@
             if (currentPageEl) {
                 currentPageEl.textContent = '1';
             }
-            // 重新加载数据
-            loadMonitoringSyncRecords();
+            
+            // 重置分页按钮状态
+            updatePaginationButtons(1, 1);
+            
+            // 直接调用数据页面记录加载函数
+            loadDataPageRecords();
         }
 
         // 添加缺失的同步任务重试函数
@@ -4031,22 +4064,6 @@
                 });
         }
 
-        // 版本相关功能
-        function toggleVersionsFloatingBall() {
-            console.log('切换版本历史悬浮球');
-            const versionsBall = document.getElementById('versions-ball');
-            if (versionsBall) {
-                versionsBall.style.display = versionsBall.style.display === 'none' ? 'block' : 'none';
-            }
-        }
-
-        function toggleVersionsMenu() {
-            console.log('切换版本菜单');
-            const versionsMenu = document.getElementById('versions-menu');
-            if (versionsMenu) {
-                versionsMenu.classList.toggle('hidden');
-            }
-        }
 
         function showVersionInfo() {
             console.log('显示版本信息');
@@ -4057,14 +4074,7 @@
         document.addEventListener('DOMContentLoaded', function() {
             console.log('页面初始化完成');
             
-            // 绑定页面大小选择器事件
-            const pageSizeSelect = document.getElementById('page-size');
-            if (pageSizeSelect) {
-                pageSizeSelect.addEventListener('change', changePageSize);
-                console.log('页面大小选择器事件已绑定');
-            }
-            
-            // 初始化数据管理页面分页控制
+            // 初始化数据管理页面分页控制（包含页面大小选择器绑定）
             initDataPagePagination();
         });
         
@@ -4074,27 +4084,36 @@
             // 绑定页面大小选择器事件（使用一次性绑定）
             const pageSizeSelect = document.getElementById('page-size');
             if (pageSizeSelect && !pageSizeSelect.hasAttribute('data-listener-bound')) {
-                pageSizeSelect.addEventListener('change', changePageSize);
+                pageSizeSelect.addEventListener('change', (e) => {
+                    console.log('页面大小选择器被点击，新值:', e.target.value);
+                    changePageSize();
+                });
                 pageSizeSelect.setAttribute('data-listener-bound', 'true');
                 console.log('页面大小选择器事件已绑定');
             }
             
-            // 绑定批量重试按钮事件
+            // 绑定批量重试按钮事件（使用一次性绑定）
             const retryButtons = document.querySelectorAll('#data-retry-buttons button');
             retryButtons.forEach((btn, index) => {
-                const statuses = ['pending', 'failed', 'all'];
-                const status = statuses[index] || 'all';
-                btn.addEventListener('click', () => batchRetryRecords(status));
-                console.log(`绑定批量重试按钮: ${status}`);
+                if (!btn.hasAttribute('data-listener-bound')) {
+                    const statuses = ['pending', 'failed', 'all'];
+                    const status = statuses[index] || 'all';
+                    btn.addEventListener('click', () => batchRetryRecords(status));
+                    btn.setAttribute('data-listener-bound', 'true');
+                    console.log(`绑定批量重试按钮: ${status}`);
+                }
             });
             
-            // 绑定批量删除按钮事件
+            // 绑定批量删除按钮事件（使用一次性绑定）
             const deleteButtons = document.querySelectorAll('#data-delete-buttons button');
             deleteButtons.forEach((btn, index) => {
-                const statuses = ['failed', 'processing', 'all'];
-                const status = statuses[index] || 'all';
-                btn.addEventListener('click', () => batchDeleteRecords(status));
-                console.log(`绑定批量删除按钮: ${status}`);
+                if (!btn.hasAttribute('data-listener-bound')) {
+                    const statuses = ['failed', 'processing', 'all'];
+                    const status = statuses[index] || 'all';
+                    btn.addEventListener('click', () => batchDeleteRecords(status));
+                    btn.setAttribute('data-listener-bound', 'true');
+                    console.log(`绑定批量删除按钮: ${status}`);
+                }
             });
             
             // 绑定页面导航按钮事件（使用一次性绑定）
@@ -4104,10 +4123,15 @@
             if (prevPageBtn && !prevPageBtn.hasAttribute('data-listener-bound')) {
                 prevPageBtn.addEventListener('click', (e) => {
                     e.preventDefault();
+                    e.stopPropagation();
+                    console.log('上一页按钮被点击');
                     const currentPageEl = document.getElementById('current-page');
                     const currentPage = currentPageEl ? parseInt(currentPageEl.textContent) : 1;
                     if (currentPage > 1 && !prevPageBtn.disabled) {
+                        console.log('执行上一页操作:', currentPage - 1);
                         changePage(currentPage - 1);
+                    } else {
+                        console.log('上一页按钮被禁用或已在第一页');
                     }
                 });
                 prevPageBtn.setAttribute('data-listener-bound', 'true');
@@ -4117,12 +4141,17 @@
             if (nextPageBtn && !nextPageBtn.hasAttribute('data-listener-bound')) {
                 nextPageBtn.addEventListener('click', (e) => {
                     e.preventDefault();
+                    e.stopPropagation();
+                    console.log('下一页按钮被点击');
                     const currentPageEl = document.getElementById('current-page');
                     const totalPagesEl = document.getElementById('total-pages');
                     const currentPage = currentPageEl ? parseInt(currentPageEl.textContent) : 1;
                     const totalPages = totalPagesEl ? parseInt(totalPagesEl.textContent) : 1;
                     if (currentPage < totalPages && !nextPageBtn.disabled) {
+                        console.log('执行下一页操作:', currentPage + 1);
                         changePage(currentPage + 1);
+                    } else {
+                        console.log('下一页按钮被禁用或已在最后一页');
                     }
                 });
                 nextPageBtn.setAttribute('data-listener-bound', 'true');
