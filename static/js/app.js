@@ -1814,17 +1814,7 @@
                 saveSettingsBtn.addEventListener('click', saveSystemSettings);
             }
 
-            // 帮助页面按钮
-            const helpTabBtns = document.querySelectorAll('button[onclick*="switchHelpTab"]');
-            helpTabBtns.forEach(btn => {
-                const onclick = btn.getAttribute('onclick');
-                const match = onclick.match(/switchHelpTab\('([^']+)'\)/);
-                if (match) {
-                    const tab = match[1];
-                    btn.removeAttribute('onclick');
-                    btn.addEventListener('click', () => switchHelpTab(tab));
-                }
-            });
+            // 帮助页面按钮已在initHelpPage函数中处理
 
             // 导航相关按钮
             const quickActionBtns = document.querySelectorAll('button[onclick*="showPage"]');
@@ -3413,7 +3403,59 @@
 
         function initHelpPage() {
             console.log('初始化帮助页面');
-            // 帮助页面的初始化逻辑
+            
+            // 初始化帮助页面标签页功能
+            const helpTabBtns = document.querySelectorAll('.help-tab-btn');
+            helpTabBtns.forEach(btn => {
+                if (!btn.hasAttribute('data-listener-bound')) {
+                    btn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const tabName = btn.getAttribute('data-tab');
+                        console.log('帮助标签页点击:', tabName);
+                        switchHelpTab(tabName);
+                    });
+                    btn.setAttribute('data-listener-bound', 'true');
+                }
+            });
+            
+            // 默认显示第一个标签页
+            switchHelpTab('getting-started');
+        }
+        
+        // 帮助页面标签页切换函数
+        function switchHelpTab(tabName) {
+            console.log('切换帮助标签页:', tabName);
+            
+            // 隐藏所有标签页内容
+            const allTabContents = document.querySelectorAll('.help-tab-content');
+            allTabContents.forEach(content => {
+                content.classList.add('hidden');
+            });
+            
+            // 显示目标标签页内容
+            const targetContent = document.getElementById('help-tab-' + tabName);
+            if (targetContent) {
+                targetContent.classList.remove('hidden');
+                console.log('显示帮助标签页内容:', tabName);
+            } else {
+                console.error('未找到帮助标签页内容:', tabName);
+            }
+            
+            // 更新标签页按钮状态
+            const allTabBtns = document.querySelectorAll('.help-tab-btn');
+            allTabBtns.forEach(btn => {
+                const btnTab = btn.getAttribute('data-tab');
+                if (btnTab === tabName) {
+                    // 激活当前标签页按钮
+                    btn.classList.remove('border-transparent', 'text-gray-500');
+                    btn.classList.add('border-blue-500', 'text-blue-600');
+                } else {
+                    // 重置其他标签页按钮
+                    btn.classList.remove('border-blue-500', 'text-blue-600');
+                    btn.classList.add('border-transparent', 'text-gray-500');
+                }
+            });
         }
 
         // 数据管理页面：切换数据视图
