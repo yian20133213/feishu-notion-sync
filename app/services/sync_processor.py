@@ -336,45 +336,115 @@ class SyncProcessor:
                         # 如果更新失败，继续创建新页面（但记录警告）
                 
                 # 创建新页面 - 在数据库中创建
-                # 为数据库页面创建属性
-                properties = {
-                    "title": {
-                        "title": [
-                            {
-                                "text": {
-                                    "content": feishu_content['title']
+                # 为数据库页面创建属性（安全版本）
+                try:
+                    # 先获取数据库的属性schema
+                    database_info = self.notion_client.get_database_properties(database_id)
+                    available_properties = database_info.get('properties', {})
+                    logger.info(f"Database properties: {list(available_properties.keys())}")
+                    
+                    # 基础属性
+                    properties = {}
+                    
+                    # 查找标题属性
+                    title_prop = None
+                    for prop_name, prop_info in available_properties.items():
+                        if prop_info.get('type') == 'title':
+                            title_prop = prop_name
+                            break
+                    
+                    if title_prop:
+                        properties[title_prop] = {
+                            "title": [
+                                {
+                                    "text": {
+                                        "content": feishu_content['title']
+                                    }
                                 }
+                            ]
+                        }
+                    
+                    # 安全地添加其他属性（只有当数据库中存在时才添加）
+                    if "type" in available_properties and available_properties["type"].get("type") == "select":
+                        properties["type"] = {
+                            "select": {
+                                "name": "Post"
                             }
-                        ]
-                    },
-                    "type": {
-                        "select": {
-                            "name": "Post"
                         }
-                    },
-                    "status": {
-                        "select": {
-                            "name": "Published"
+                    
+                    if "status" in available_properties and available_properties["status"].get("type") == "select":
+                        properties["status"] = {
+                            "select": {
+                                "name": "Published"
+                            }
                         }
-                    },
-                    "category": {
-                        "select": {
-                            "name": notion_category or "技术分享"
+                    
+                    if "category" in available_properties and available_properties["category"].get("type") == "select":
+                        properties["category"] = {
+                            "select": {
+                                "name": notion_category or "技术分享"
+                            }
                         }
-                    },
-                    "date": {
-                        "date": {
-                            "start": get_beijing_time().date().isoformat()
+                    
+                    if "date" in available_properties and available_properties["date"].get("type") == "date":
+                        properties["date"] = {
+                            "date": {
+                                "start": get_beijing_time().date().isoformat()
+                            }
+                        }
+                    
+                    logger.info(f"Creating page with properties: {list(properties.keys())}")
+                    
+                except Exception as e:
+                    logger.warning(f"Failed to get database properties, using minimal properties: {e}")
+                    # 如果获取数据库属性失败，使用最简单的属性
+                    properties = {
+                        "title": {
+                            "title": [
+                                {
+                                    "text": {
+                                        "content": feishu_content['title']
+                                    }
+                                }
+                            ]
                         }
                     }
-                }
                 
                 # 转换内容块
                 content_blocks = self.notion_client.convert_feishu_to_notion_blocks(feishu_content)
                 
-                # 在数据库中创建页面
-                page_data = self.notion_client.create_database_page(database_id, properties, content_blocks)
-                target_page_id = page_data['id']
+                # Notion API限制：单次请求最多100个子块
+                MAX_BLOCKS_PER_REQUEST = 100
+                
+                if len(content_blocks) <= MAX_BLOCKS_PER_REQUEST:
+                    # 内容块数量在限制范围内，直接创建页面
+                    page_data = self.notion_client.create_database_page(database_id, properties, content_blocks)
+                    target_page_id = page_data['id']
+                    logger.info(f"Created new Notion database page with {len(content_blocks)} blocks: {target_page_id}")
+                else:
+                    # 内容块数量超过限制，分批处理
+                    logger.info(f"Content has {len(content_blocks)} blocks, exceeding Notion API limit of {MAX_BLOCKS_PER_REQUEST}. Using batch processing.")
+                    
+                    # 先创建页面，只包含前100个块
+                    initial_blocks = content_blocks[:MAX_BLOCKS_PER_REQUEST]
+                    page_data = self.notion_client.create_database_page(database_id, properties, initial_blocks)
+                    target_page_id = page_data['id']
+                    logger.info(f"Created new Notion database page with initial {len(initial_blocks)} blocks: {target_page_id}")
+                    
+                    # 分批添加剩余的内容块
+                    remaining_blocks = content_blocks[MAX_BLOCKS_PER_REQUEST:]
+                    batch_size = MAX_BLOCKS_PER_REQUEST
+                    
+                    for i in range(0, len(remaining_blocks), batch_size):
+                        batch = remaining_blocks[i:i + batch_size]
+                        try:
+                            self.notion_client.append_blocks(target_page_id, batch)
+                            logger.info(f"Appended batch of {len(batch)} blocks to page {target_page_id}")
+                        except Exception as e:
+                            logger.error(f"Failed to append batch {i//batch_size + 1} to page {target_page_id}: {e}")
+                            # 记录错误但继续处理其他批次
+                    
+                    logger.info(f"Completed batch processing for page {target_page_id}. Total blocks: {len(content_blocks)}")
                 
                 logger.info(f"Created new Notion database page: {target_page_id}")
                 return {

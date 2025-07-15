@@ -26,13 +26,18 @@ class SyncService:
         self.logger = logger or logging.getLogger(__name__)
     
     def format_datetime(self, dt: datetime = None) -> str:
-        """统一日期时间格式处理"""
+        """统一日期时间格式处理（转换为北京时间）"""
+        from app.utils.helpers import utc_to_beijing, get_beijing_time_str
+        
         if isinstance(dt, str):
             return dt
         elif isinstance(dt, datetime):
-            return dt.strftime('%Y-%m-%d %H:%M:%S')
+            # 将UTC时间转换为北京时间
+            beijing_dt = utc_to_beijing(dt)
+            return beijing_dt.strftime('%Y-%m-%d %H:%M:%S')
         else:
-            return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            # 返回当前北京时间
+            return get_beijing_time_str()
     
     def model_to_dict(self, model_instance) -> Dict[str, Any]:
         """将SQLAlchemy模型实例转换为字典"""

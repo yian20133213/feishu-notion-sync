@@ -43,13 +43,16 @@ def beijing_to_utc(beijing_dt: datetime) -> datetime:
 
 
 def format_datetime(dt: datetime = None) -> str:
-    """统一日期时间格式处理"""
+    """统一日期时间格式处理（转换为北京时间）"""
     if isinstance(dt, str):
         return dt
     elif isinstance(dt, datetime):
-        return dt.strftime('%Y-%m-%d %H:%M:%S')
+        # 将UTC时间转换为北京时间
+        beijing_dt = utc_to_beijing(dt)
+        return beijing_dt.strftime('%Y-%m-%d %H:%M:%S')
     else:
-        return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        # 返回当前北京时间
+        return get_beijing_time_str()
 
 
 def safe_row_to_dict(row, default_values: Dict = None) -> Dict:
@@ -75,13 +78,19 @@ def safe_row_to_dict(row, default_values: Dict = None) -> Dict:
                     
                     try:
                         dt = datetime.fromisoformat(value)
-                        result[key] = dt.strftime('%Y-%m-%d %H:%M:%S')
+                        # 转换为北京时间
+                        beijing_dt = utc_to_beijing(dt)
+                        result[key] = beijing_dt.strftime('%Y-%m-%d %H:%M:%S')
                     except ValueError:
                         # 尝试手动解析
                         dt = datetime.strptime(value, '%Y-%m-%dT%H:%M:%S')
-                        result[key] = dt.strftime('%Y-%m-%d %H:%M:%S')
+                        # 转换为北京时间
+                        beijing_dt = utc_to_beijing(dt)
+                        result[key] = beijing_dt.strftime('%Y-%m-%d %H:%M:%S')
                 elif isinstance(value, datetime):
-                    result[key] = value.strftime('%Y-%m-%d %H:%M:%S')
+                    # 转换为北京时间
+                    beijing_dt = utc_to_beijing(value)
+                    result[key] = beijing_dt.strftime('%Y-%m-%d %H:%M:%S')
             except (ValueError, AttributeError) as e:
                 # 如果转换失败，输出警告但保持原值
                 print(f"Warning: Failed to parse datetime '{value}': {e}")
